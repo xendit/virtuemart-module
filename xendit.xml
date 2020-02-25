@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<extension version="2.5" type="plugin" group="vmpayment" method="upgrade">
+    <name>VM Payment - Xendit</name>
+    <creationDate>February 25 2020</creationDate>
+    <author>TPI Team</author>
+    <authorUrl>https://xendit.co</authorUrl>
+    <copyright>Copyright (C) 2020 TPI Team. All rights reserved.</copyright>
+    <license>http://www.gnu.org/licenses/gpl-2.0.html GNU/GPL</license>
+    <version>0.0.1</version>
+    <description><![CDATA[<a href="http://xendit.co" target="_blank">Xendit</a> ]]>
+    </description>
+    <languages folder="language">
+        <language tag="en-GB">en-GB/en-GB.plg_vmpayment_xendit.ini</language>
+    </languages>
+    <files>
+        <filename plugin="xendit">xendit.php</filename>
+        <folder>xendit</folder>
+        <folder>language</folder>
+    </files>
+
+    <vmconfig>
+        <fields name="params">
+
+            <fieldset name="basic" addfieldpath="/plugins/vmpayment/xendit/xendit/fields">
+                <field type="getxendit" level="level1 "/>
+                <field class="level1 " type="vmtitle" default="VMPAYMENT_XENDIT_CONF_ACCOUNT_PARAMS"/>
+
+                <field name="shop_mode" type="list" default="test" label="VMPAYMENT_XENDIT_CONF_SHOP_MODE"
+                       description="VMPAYMENT_XENDIT_CONF_SHOP_MODE_TIP">
+                    <option value="test">VMPAYMENT_XENDIT_CONF_SHOP_MODE_TEST</option>
+                    <option value="production">VMPAYMENT_XENDIT_CONF_SHOP_MODE_PRODUCTION</option>
+                </field>
+                <field class="shop_mode" type="vmtitle" default=""
+                       description="VMPAYMENT_XENDIT_CONF_SHOP_MODE_WARNING"/>
+                
+                <field name="xendit_gateway_public_api_key" class="vmwarn required" type="password" size="200" maxlength="200"
+                       default=""
+                       label="VMPAYMENT_XENDIT_CONF_PUBLIC_KEY"
+                       description="VMPAYMENT_XENDIT_CONF_PUBLIC_KEY_TIP"/>
+                       
+                <field name="xendit_gateway_secret_api_key" class="vmwarn required" type="password" size="200" maxlength="200"
+                       default=""
+                       label="VMPAYMENT_XENDIT_CONF_SECRET_KEY"
+                       description="VMPAYMENT_XENDIT_CONF_SECRET_KEY_TIP"/>
+            </fieldset>
+        </fields>
+    </vmconfig>
+    <updateservers>
+        <!-- Note: No spaces or linebreaks allowed between the server tags -->
+        <server type="extension" name="VirtueMart plg_vmpayment_xendit Update Site"><![CDATA[http://virtuemart.net/releases/vm3/plg_vmpayment_xendit_update.xml]]></server>
+    </updateservers>
+</extension>r
