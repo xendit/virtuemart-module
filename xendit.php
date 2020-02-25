@@ -25,6 +25,13 @@ if (!class_exists('vmPSPlugin')) {
 	require(VMPATH_PLUGINLIBS . DS . 'vmpsplugin.php');
 }
 
+/**
+ * We need this class to:
+ * 1. Validate order (check if API key is set, currency is supported, amount is valid)
+ * 2. Order handler (change order status, create invoice, redirect to invoice URL)
+ * 3. 
+ */
+
 class plgVmpaymentXendit extends vmPSPlugin {
 
 	// instance of class
@@ -39,9 +46,42 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		$this->_tableId = 'id';
 		$varsToPush = $this->getVarsToPush ();
 		$this->setConfigParameterable ($this->_configTableFieldName, $varsToPush);
+	}
+	
+	/**
+	 * We must reimplement this triggers for joomla 1.7
+	 */
 
-		//$this->setCryptedFields(array('key'));
+	/**
+	 * Create the table for this plugin if it does not yet exist.
+	 * This functions checks if the called plugin is active one.
+	 * When yes it is calling the standard method to create the tables
+	 */
+	function plgVmOnStoreInstallPaymentPluginTable($jplugin_id) {
 
+		if ($res = $this->selectedThisByJPluginId($jplugin_id)) {
+
+			$virtuemart_paymentmethod_id = vRequest::getInt('virtuemart_paymentmethod_id');
+			$method = $this->getPluginMethod($virtuemart_paymentmethod_id);
+			vmdebug('plgVmOnStoreInstallPaymentPluginTable', $method, $virtuemart_paymentmethod_id);
+
+			if (!extension_loaded('curl')) {
+				vmError(vmText::sprintf('VMPAYMENT_' . $this->_name . '_CONF_MANDATORY_PHP_EXTENSION', 'curl'));
+			}
+			if (!extension_loaded('openssl')) {
+				vmError(vmText::sprintf('VMPAYMENT_' . $this->_name . '_CONF_MANDATORY_PHP_EXTENSION', 'openssl'));
+			}
+		}
+
+		return $this->onStoreInstallPluginTable($jplugin_id);
+	}
+	
+	/**
+	 * Used for storing values of payment plugins configuration in database table. 
+	 */
+	function plgVmSetOnTablePluginParamsPayment($name, $id, &$table) {
+        
+		return $this->setOnTablePluginParams($name, $id, $table);
 	}
 
     /**
@@ -67,18 +107,49 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			'payment_name'                => 'varchar(5000)',
 			'payment_order_total'         => 'decimal(15,5) NOT NULL DEFAULT \'0.00000\'',
 			'payment_fee'                 => 'decimal(10,2)',
-			'tax_id'                      => 'smallint(1)',
-			'xendit_eid'                  => 'int(10)',
-			'xendit_status_code'          => 'tinyint(4)',
-			'xendit_status_text'          => 'varchar(255)',
-			'xendit_invoice_no'           => 'varchar(255)',
-			'xendit_log'                  => 'varchar(255)',
-			'xendit_pclass'               => 'int(1)',
-			'xendit_pdf_invoice'          => 'varchar(512)',
+			'xendit_status'               => 'varchar(50)',
+			'xendit_invoice_id'           => 'varchar(255)',
+			'xendit_invoice_url'          => 'varchar(255)',
+			'xendit_charge_id'            => 'varchar(255)'
 		);
 		return $SQLfields;
 	}
+	
+	/**
+	 * This function is called whenever you try to update the configuration of the payment plugin.
+	 */
+	function plgVmDeclarePluginParamsPaymentVM3( &$data) {
+		return $this->declarePluginParams('payment', $data);
+    }
+    
+    /**
+	 * This function is first called when you finally setup the configuration of payment plugin and redirect to the cart view on store.
+     * In case you have set your payment plugin as the default payment method by VirtueMart’s Configuration, this function is used.
+	 * 
+     * @param VirtueMartCart cart: the cart object
+	 * @return null if no plugin was found, 0 if more then one plugin was found, virtuemart_xxx_id if only one plugin is found
+	 *
+	 */
+	function plgVmOnCheckAutomaticSelectedPayment(VirtueMartCart $cart, array $cart_prices = array()) {
 
+		return $this->onCheckAutomaticSelected($cart, $cart_prices);
+    }
+    
+    /**
+     * Check if the payment conditions are fulfilled for the payment method.
+     * Can be used to show/hide the payment plugin on some specific conditions.
+     * 
+     * @param array  $cart        cart details
+     * @param object $method      method data
+     * @param object $cart_prices cart prices object
+     */
+    function checkConditions($cart, $method, $cart_prices) {
+        //TODO: check currency, min & max amount
+        if ($cart_prices['billTotal'] < 10000) {
+            return false;
+        }
+    }
+	
     /**
      * Trigerred when end user click the "Confirm Purchase" button.
      * 
@@ -148,38 +219,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		vRequest::setVar('display_title', false);
 		vRequest::setVar('html', $html);
 		return true;
-	}
-
-
-	function plgVmOnUserPaymentCancel() {
-
-		if (!class_exists('VirtueMartModelOrders')) {
-			require(VMPATH_ADMIN . DS . 'models' . DS . 'orders.php');
-		}
-
-		$order_number = vRequest::getUword('on');
-		$virtuemart_paymentmethod_id = vRequest::getInt('pm', '');
-		if (empty($order_number) or empty($virtuemart_paymentmethod_id) or !$this->selectedThisByMethodId($virtuemart_paymentmethod_id)) {
-			return NULL;
-		}
-		$numerr = vRequest::getString('E', '');
-		if ($numerr) {
-			VmInfo('VMPAYMENT_' . $this->_name . '_PBX_NUMERR_' . abs($numerr));
-		}
-		if (!$virtuemart_order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number)) {
-			return NULL;
-		}
-		if (!($paymentTable = $this->getDataByOrderId($virtuemart_order_id))) {
-			return NULL;
-		}
-
-		$session = JFactory::getSession();
-		$return_context = $session->getId();
-		$field = $this->_name . '_custom';
-		if (strcmp($paymentTable->$field, $return_context) === 0) {
-			$this->handlePaymentUserCancel($virtuemart_order_id);
-		}
-		return TRUE;
 	}
 
 	/**
@@ -387,34 +426,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	}
 
 	/**
-	 * We must reimplement this triggers for joomla 1.7
-	 */
-
-	/**
-	 * Create the table for this plugin if it does not yet exist.
-	 * This functions checks if the called plugin is active one.
-	 * When yes it is calling the standard method to create the tables
-	 */
-	function plgVmOnStoreInstallPaymentPluginTable($jplugin_id) {
-
-		if ($res = $this->selectedThisByJPluginId($jplugin_id)) {
-
-			$virtuemart_paymentmethod_id = vRequest::getInt('virtuemart_paymentmethod_id');
-			$method = $this->getPluginMethod($virtuemart_paymentmethod_id);
-			vmdebug('plgVmOnStoreInstallPaymentPluginTable', $method, $virtuemart_paymentmethod_id);
-
-			if (!extension_loaded('curl')) {
-				vmError(vmText::sprintf('VMPAYMENT_' . $this->_name . '_CONF_MANDATORY_PHP_EXTENSION', 'curl'));
-			}
-			if (!extension_loaded('openssl')) {
-				vmError(vmText::sprintf('VMPAYMENT_' . $this->_name . '_CONF_MANDATORY_PHP_EXTENSION', 'openssl'));
-			}
-		}
-
-		return $this->onStoreInstallPluginTable($jplugin_id);
-	}
-
-	/**
 	 * @param $virtuemart_paymentmethod_id
 	 * @return bool
 	 */
@@ -525,21 +536,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	}
 
 	/**
-	 * plgVmOnCheckAutomaticSelectedPayment
-	 * Checks how many plugins are available. If only one, the user will not have the choice. Enter edit_xxx page
-	 * The plugin must check first if it is the correct type
-	 *
-	 * @author Valerie Isaksen
-	 * @param VirtueMartCart cart: the cart object
-	 * @return null if no plugin was found, 0 if more then one plugin was found,  virtuemart_xxx_id if only one plugin is found
-	 *
-	 */
-	function plgVmOnCheckAutomaticSelectedPayment(VirtueMartCart $cart, array $cart_prices = array()) {
-
-		return $this->onCheckAutomaticSelected($cart, $cart_prices);
-	}
-
-	/**
 	 * This method is fired when showing the order details in the frontend.
 	 * It displays the method-specific data.
 	 *
@@ -628,14 +624,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	return null;
 	}
 	 */
-	function plgVmDeclarePluginParamsPaymentVM3( &$data) {
-		return $this->declarePluginParams('payment', $data);
-	}
-
-	function plgVmSetOnTablePluginParamsPayment($name, $id, &$table) {
-		return $this->setOnTablePluginParams($name, $id, $table);
-	}
-
 
 	/**
 	 * @param $response
