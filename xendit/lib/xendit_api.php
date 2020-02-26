@@ -1,7 +1,27 @@
 <?php
 
-if (!defined('ABSPATH')) {
-    exit;
+defined('_JEXEC') or die('Restricted access');
+/**
+ * @mainpage
+ * Base class for XENDIT Api
+ * This class implements basic http authentication and a JSON-parser
+ * for parsing response messages
+ *
+ * Requires libcurl and openssl
+ *
+ * Copyright (c) 2020 XENDIT
+ *
+ * Released under the GNU General Public License (Version 2)
+ * [http://www.gnu.org/licenses/gpl-2.0.html]
+ *
+ * $Date: 2020-02-26 17:15:47 +0700 $
+ * @version XenditLib 1.0.0  $Id: xenditLib.php 5773 2012-11-23 16:15:47Z dehn $
+ * @author XENDIT AG https://www.xendit.co (thirdpartyintegrations@xendit.co)
+ *
+ */
+
+if(!defined('XENDITLIB_VERSION')) {
+	define('XENDITLIB_VERSION','1.0.0');
 }
 
 class XenditApi {
@@ -79,3 +99,5 @@ class XenditApi {
         return $jsonResponse;
     }
 }
+
+?>

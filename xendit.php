@@ -121,10 +121,8 @@ class plgVmPaymentXendit extends vmPSPlugin {
         }
         if (!class_exists('XenditApi')) {
 			require(VMPATH_ROOT . DS . 'plugins' . DS . 'vmpayment' . DS . 'xendit' . DS . 'xendit' . DS . 'lib' . DS . 'xendit_api.php');
-        }
+		}
 
-        return TRUE;
-        
         $xendit_options = array(
             'public_api_key' => self::getPublicKey($method),
             'secret_api_key' => self::getSecretKey($method),
