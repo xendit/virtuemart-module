@@ -124,10 +124,12 @@ class plgVmPaymentXendit extends vmPSPlugin {
 		}
 
         $xendit_options = array(
-            'public_api_key' => self::getPublicKey($method),
-            'secret_api_key' => self::getSecretKey($method),
+            // 'public_api_key' => self::getPublicKey($method),
+            // 'secret_api_key' => self::getSecretKey($method),
+            'secret_api_key' => 'xnd_development_O4iAfOUs3bX+kZU/euIcGGLEMNem99QtkSfp+Rxj/2Xf/rKpCwB0gA==',
+            'public_api_key' => 'test'
         );
-		$xendit_api = new XenditApi(trim($this->_currentMethod->configuration_key));
+		$xendit_api = new XenditApi($xendit_options);
 
 		vmLanguage::loadJLang('com_virtuemart',true);
 		vmLanguage::loadJLang('com_virtuemart_orders', TRUE);
@@ -168,33 +170,41 @@ class plgVmPaymentXendit extends vmPSPlugin {
             'platform_callback_url' => self::getNotificationUrl($order)
         );
         $invoice_header = array(
-            'x-plugin-method' => 'BNI',
-            'x-plugin-store-name' => $store_name
+            'x-plugin-method: BNI',
+            'x-plugin-store-name: ' . $store_name
         );
-        $invoice_response = $xendit_api->createInvoice($invoice_data, $invoice_header);
 
-        if (isset($invoice_response['error_code'])) {
-            vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $invoice_response['error_code'], $invoice_response['message']));
-            vmInfo(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $invoice_response['error_code'], $invoice_response['message']));
+        try {
+            $invoice_response = $xendit_api->createInvoice($invoice_data, $invoice_header);
+
+            if (isset($invoice_response['error_code'])) {
+                vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $invoice_response['error_code'], $invoice_response['message']));
+                vmInfo(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $invoice_response['error_code'], $invoice_response['message']));
+                $this->redirectToCart();
+                return;
+            }
+    
+            $dbValues['xendit_invoice_id'] = $invoice_response['id'];
+            $dbValues['xendit_invoice_url'] = $invoice_response['invoice_url'];
+            $dbValues['xendit_status'] = $invoice_response['status'];
+            $this->storePSPluginInternalData ($dbValues);
+    
+            $currency = CurrencyDisplay::getInstance ('', $order['details']['BT']->virtuemart_vendor_id);
+    
+            $modelOrder = VmModel::getModel ('orders');
+            $order['order_status'] = $this->getNewStatus ($method);
+            $order['customer_notified'] = 1;
+            $order['comments'] = 'Checkout using Xendit';
+            $modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
+    
+            $mainframe = JFactory::getApplication();
+            $mainframe->redirect($invoice_response['invoice_url']);
+        } catch (Exception $e) {
+            vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
+            vmInfo(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
             $this->redirectToCart();
-			return;
+            return;
         }
-
-        $dbValues['xendit_invoice_id'] = $invoice_response['id'];
-        $dbValues['xendit_invoice_url'] = $invoice_response['invoice_url'];
-        $dbValues['xendit_status'] = $invoice_response['status'];
-		$this->storePSPluginInternalData ($dbValues);
-
-		$currency = CurrencyDisplay::getInstance ('', $order['details']['BT']->virtuemart_vendor_id);
-
-		$modelOrder = VmModel::getModel ('orders');
-		$order['order_status'] = $this->getNewStatus ($method);
-		$order['customer_notified'] = 1;
-		$order['comments'] = 'Checkout using Xendit';
-		$modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
-
-		$mainframe = JFactory::getApplication();
-		$mainframe->redirect($invoice_response['invoice_url']);
     }
     
     function redirectToCart ($msg = NULL) {
@@ -501,8 +511,8 @@ class plgVmPaymentXendit extends vmPSPlugin {
 		return  JRoute::_('index.php?option=com_virtuemart&view=cart&Itemid=' . vRequest::getInt('Itemid').'&lang='.vRequest::getCmd('lang',''), false);
 	}
 
-	static function getNotificationUrl ($security, $order) {
-		return JURI::root()  .  "index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&tmpl=component&pm=" . $order['details']['BT']->virtuemart_paymentmethod_id . '&on=' . $order['details']['BT']->order_number . "&security=" . $security .'&lang='.vRequest::getCmd('lang','');
+	static function getNotificationUrl ($order) {
+		return JURI::root()  .  "index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&tmpl=component&pm=" . $order['details']['BT']->virtuemart_paymentmethod_id . '&on=' . $order['details']['BT']->order_number . '&lang='.vRequest::getCmd('lang','');
     }
     
     static function getPublicKey ($method) {
