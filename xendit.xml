@@ -32,15 +32,15 @@
                 <field class="shop_mode" type="vmtitle" default=""
                        description="VMPAYMENT_XENDIT_CONF_SHOP_MODE_WARNING"/>
                 
-                <field name="xendit_gateway_public_api_key_dev" class="vmwarn required" type="password" maxlength="200"
+                <field name="xendit_gateway_public_api_key_test" class="vmwarn required" type="password" maxlength="200"
                        default=""
-                       label="VMPAYMENT_XENDIT_CONF_PUBLIC_KEY_DEV"
-                       description="VMPAYMENT_XENDIT_CONF_PUBLIC_KEY_DEV_TIP"/>
+                       label="VMPAYMENT_XENDIT_CONF_PUBLIC_KEY_TEST"
+                       description="VMPAYMENT_XENDIT_CONF_PUBLIC_KEY_TEST_TIP"/>
                        
-                <field name="xendit_gateway_secret_api_key_dev" class="vmwarn required" type="password" maxlength="200"
+                <field name="xendit_gateway_secret_api_key_test" class="vmwarn required" type="password" maxlength="200"
                        default=""
-                       label="VMPAYMENT_XENDIT_CONF_SECRET_KEY_DEV"
-                       description="VMPAYMENT_XENDIT_CONF_SECRET_KEY_DEV_TIP"/>
+                       label="VMPAYMENT_XENDIT_CONF_SECRET_KEY_TEST"
+                       description="VMPAYMENT_XENDIT_CONF_SECRET_KEY_TEST_TIP"/>
                        
                 <field name="xendit_gateway_public_api_key" class="vmwarn required" type="password" maxlength="200"
                        default=""
