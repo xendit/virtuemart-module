@@ -22,7 +22,6 @@
         <fields name="params">
 
             <fieldset name="basic" addfieldpath="/plugins/vmpayment/xendit/xendit/fields">
-                <field type="getxendit" level="level1 "/>
                 <field class="level1 " type="vmtitle" default="VMPAYMENT_XENDIT_CONF_ACCOUNT_PARAMS"/>
 
                 <field name="shop_mode" type="list" default="test" label="VMPAYMENT_XENDIT_CONF_SHOP_MODE"
@@ -33,12 +32,12 @@
                 <field class="shop_mode" type="vmtitle" default=""
                        description="VMPAYMENT_XENDIT_CONF_SHOP_MODE_WARNING"/>
                 
-                <field name="xendit_gateway_public_api_key" class="vmwarn required" type="password" size="200" maxlength="200"
+                <field name="xendit_gateway_public_api_key" class="vmwarn required" type="password" maxlength="200"
                        default=""
                        label="VMPAYMENT_XENDIT_CONF_PUBLIC_KEY"
                        description="VMPAYMENT_XENDIT_CONF_PUBLIC_KEY_TIP"/>
                        
-                <field name="xendit_gateway_secret_api_key" class="vmwarn required" type="password" size="200" maxlength="200"
+                <field name="xendit_gateway_secret_api_key" class="vmwarn required" type="password" maxlength="200"
                        default=""
                        label="VMPAYMENT_XENDIT_CONF_SECRET_KEY"
                        description="VMPAYMENT_XENDIT_CONF_SECRET_KEY_TIP"/>
@@ -49,4 +48,4 @@
         <!-- Note: No spaces or linebreaks allowed between the server tags -->
         <server type="extension" name="VirtueMart plg_vmpayment_xendit Update Site"><![CDATA[http://virtuemart.net/releases/vm3/plg_vmpayment_xendit_update.xml]]></server>
     </updateservers>
-</extension>r
+</extension>
