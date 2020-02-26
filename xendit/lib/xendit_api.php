@@ -36,7 +36,7 @@ class XenditApi {
     /*******************************************************************************
         Virtual Accounts
      *******************************************************************************/
-    /*function createInvoice ($body, $header) {
+    function createInvoice ($body, $header) {
         $curl = curl_init();
 
         $end_point = $this->tpi_server_domain.'/payment/xendit/invoice';
@@ -88,5 +88,5 @@ class XenditApi {
 
         $jsonResponse = json_decode( $response['body'], true );
         return $jsonResponse;
-    }*/
+    }
 }
