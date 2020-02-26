@@ -18,8 +18,6 @@ if (!class_exists('vmPSPlugin')) {
 
 class plgVmpaymentXendit extends vmPSPlugin {
 
-	// instance of class
-
 	function __construct(& $subject, $config) {
 
 		parent::__construct($subject, $config);
@@ -174,7 +172,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		return TRUE;
 	}
 
-
 	function plgVmOnPaymentResponseReceived(&$html) {
 
 		if (!class_exists('VirtueMartCart')) {
@@ -208,12 +205,11 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	}
 
 	/**
-	 * plgVmOnPaymentNotification() - This event is fired by Offline Payment. It can be used to validate the payment data as entered by the user.
+	 * This event is fired by Offline Payment. It can be used to validate the payment data as entered by the user.
 	 * Return:
      *
 	 * @author Valerie Isaksen
 	 */
-
 	function plgVmOnPaymentNotification() {
 
 		if (!class_exists('VirtueMartModelOrders')) {
@@ -264,11 +260,11 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		}
 		return TRUE;
 	}
+
 	/**
 	 * @param $xendit_data
 	 * @return bool
 	 */
-
 	function paymentNotification ($xendit_data) {
 
 		if (!$this->isXenditResponseValid( $xendit_data, true, false)) {
@@ -347,16 +343,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		return $html;
 	}
 
-	function getHtmlHeaderBE() {
-
-		return parent:: getHtmlHeaderBE();
-	}
-
-	private function rmspace($buffer) {
-
-		return preg_replace('~>\s*\n\s*<~', '><', $buffer);
-	}
-
 	function getCosts(VirtueMartCart $cart, $method, $cart_prices) {
 
 		if (preg_match('/%$/', $method->cost_percent_total)) {
@@ -397,13 +383,10 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	}
 
 	/*
-	* plgVmonSelectedCalculatePricePayment
 	* Calculate the price (value, tax_id) of the selected method
-	* It is called by the calculator
-	* This function does NOT to be reimplemented. If not reimplemented, then the default values from this function are taken.
-	* @author Valerie Isaksen
-	* @cart: VirtueMartCart the current cart
-	* @cart_prices: array the new cart prices
+	* Price calculation is done on checkbox selection of payment method at cart view
+	* Without this function, our payment plugin will not be selectable on the cart view
+	*
 	* @return null if the method was not selected, false if the shiiping rate is not valid any more, true otherwise
 	*/
 	public function plgVmonSelectedCalculatePricePayment(VirtueMartCart $cart, array &$cart_prices, &$cart_prices_name) {
@@ -431,8 +414,8 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	 *
 	 * @return boolean True when the data was valid, false otherwise. If the plugin is not activated, it should return null.
 	 * @author Max Milbers
-	 */
-	/*public function plgVmOnCheckoutCheckDataPayment (VirtueMartCart $cart) {
+	 *
+	public function plgVmOnCheckoutCheckDataPayment (VirtueMartCart $cart) {
 
 		if (!$this->selectedThisByMethodId($cart->virtuemart_paymentmethod_id)) {
 			return NULL; // Another method was selected, do nothing
@@ -445,7 +428,8 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		$xenditInterface = $this->_loadXenditInterface();
 
 		return true;
-	}*/
+	}
+	*/
 
 	/**
 	 * This method is fired when showing when printing an Order
@@ -569,5 +553,3 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		}
 	}
 }
-
-// No closing tag
