@@ -215,7 +215,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
             $modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
     
             $mainframe = JFactory::getApplication();
-            $mainframe->redirect($invoice_response['invoice_url']);
+            $mainframe->redirect($invoice_response['invoice_url'] . '#bni');
         } catch (Exception $e) {
             vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
             vmInfo(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
