@@ -237,7 +237,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
      * a new parameter has been added in the xml file
      */
 	function getNewStatus ($method) {
-        return 'P';
+        return 'U';
 	}
 
     /**
@@ -314,26 +314,30 @@ class plgVmpaymentXendit extends vmPSPlugin {
 				require(VMPATH_ADMIN . DS . 'models' . DS . 'orders.php');
 			}
 		
-			// if ($_REQUEST['xendit_mode'] == 'xendit_invoice_callback') {
-			// 	$xendit = new xenditInvoice();
-			// }
-			
-			if (($_SERVER["REQUEST_METHOD"] === "POST")) {
-				$data = file_get_contents("php://input");
-				$response = json_decode($data);
+			if ($_REQUEST['xendit_mode'] == 'xendit_invoice_callback') {
 				
-				$this->validate_payment($response);
+				if (($_SERVER["REQUEST_METHOD"] === "POST")) {
+					$data = file_get_contents("php://input");
+					$response = json_decode($data);
+					
+					$this->validateInvoicePayment($response);
+				}
+				
 			}
 		}
 		
 		die('done');
 	}
 	
-	public function validate_payment($response)
+	public function validateInvoicePayment($response)
 	{
 		$orderId = $response->external_id;
         
         if ($orderId) {
+			if (!class_exists('XenditApi')) {
+				require(VMPATH_ROOT . DS.'plugins'.DS.'vmpayment'.DS.'xendit'.DS.'xendit'.DS.'lib'.DS.'xendit_api.php');
+			}
+			
             $explodedExtId = explode("-", $orderId);
             $order_number = end($explodedExtId);
 
@@ -341,70 +345,58 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			$orderModel = VmModel::getModel('orders');
 			
 			$order = $orderModel->getOrder($order_id);
+			
+			if (!($payments = $this->getDatasByOrderId($order_id))) {
+				return FALSE;
+			}
+			
+			$method = $this->getVmPluginMethod($payments[0]->virtuemart_paymentmethod_id);
 
-            // if ($this->developmentmode != 'yes') {
-            //     $payment_gateway = wc_get_payment_gateway_by_order($order->id);
-            //     if (false === get_post_status($order->id) || strpos($payment_gateway->id, 'xendit')) {
-            //         header('HTTP/1.1 400 Invalid Data Received');
-            //         exit;
-            //     }
-            // }
-
-            $invoice = $this->xenditClass->getInvoice($response->id); // get invoice base on response id
-
+			$xenditInterface = new XenditApi($method);
+			
+			$invoice = $xenditInterface->getInvoice($response->id);
+			
             if (isset($invoice['error_code'])) {
                 header('HTTP/1.1 400 Invalid Invoice Data Received');
                 exit;
-            }
-			
-			var_dump($invoice);
-			
-			return;
-			
+			}
+
             if ('PAID' == $invoice['status'] || 'SETTLED' == $invoice['status']) {
+				$modelOrder = VmModel::getModel('orders');
+				$order = array();
 
-                $notes = json_encode(
-                    array(
-                        'invoice_id' => $invoice['id'],
-                        'status' => $invoice['status'],
-                        'payment_method' => $invoice['payment_method'],
-                        'paid_amount' => $invoice['paid_amount'],
-                    )
-                );
-
-                $note = "Xendit Payment Response:" . "{$notes}";
-
-                $order->add_order_note('Xendit payment successful');
-                $order->add_order_note($note);
-
-                // Do mark payment as complete
-                $order->payment_complete();
-
-                // Reduce stock levels
-                $order->reduce_order_stock();
-
-                // Empty cart in action
-                $woocommerce->cart->empty_cart();
-
-                //die(json_encode($response, JSON_PRETTY_PRINT)."\n");
+				$order['order_status'] = 'C';
+				$notes = json_encode(
+						array(
+							'invoice_id' => $invoice['id'],
+							'status' => $invoice['status'],
+							'payment_method' => $invoice['payment_method'],
+							'paid_amount' => $invoice['paid_amount'],
+						)
+					);
+					
+				$order['comments'] = vmText::_('Xendit Payment successful, Response: '. "{$notes}");
+				$order['customer_notified'] = 1;
+				
+				$modelOrder->updateStatusForOneOrder($order_id, $order, false);
+		
                 die('SUCCESS');
             } else {
-                $order->update_status('failed');
+				$order['order_status'] = 'X';
+				$notes = json_encode(
+						array(
+							'invoice_id' => $invoice['id'],
+							'status' => $invoice['status'],
+							'payment_method' => $invoice['payment_method'],
+							'paid_amount' => $invoice['paid_amount'],
+						)
+					);
+					
+				$order['comments'] = vmText::_('Xendit Payment successful, Response: '. "{$notes}");
+				$order['customer_notified'] = 1;
 
-                $notes = json_encode(
-                    array(
-                        'invoice_id' => $invoice['id'],
-                        'status' => $invoice['status'],
-                        'payment_method' => $invoice['payment_method'],
-                        'paid_amount' => $invoice['paid_amount'],
-                    )
-                );
-
-                $note = "Xendit Payment Response:" . "{$notes}";
-
-                $order->add_order_note('Xendit payment failed');
-                $order->add_order_note($note);
-
+				$modelOrder->updateStatusForOneOrder($order_id, $order, false);
+				
                 header('HTTP/1.1 400 Invalid Data Received');
                 exit;
             }
