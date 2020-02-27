@@ -51,6 +51,15 @@
                        default=""
                        label="VMPAYMENT_XENDIT_CONF_SECRET_KEY"
                        description="VMPAYMENT_XENDIT_CONF_SECRET_KEY_TIP"/>
+
+                <field name="xendit_gateway_payment_type" type="list" default="BCA" label="VMPAYMENT_XENDIT_CONF_PAYMENT_TYPE_LABEL">
+                    <option value="BCA">Bank Transfer BCA</option>
+                    <option value="BNI">Bank Transfer BNI</option>
+                    <option value="BRI">Bank Transfer BRI</option>
+                    <option value="MANDIRI">Bank Transfer Mandiri</option>
+                    <option value="PERMATA">Bank Transfer Permata</option>
+                    <option value="CC">Credit Card</option>
+                </field>
             </fieldset>
         </fields>
     </vmconfig>
