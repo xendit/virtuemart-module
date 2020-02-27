@@ -5,19 +5,11 @@
 ### Manually
 To install this plugin manually, there are two main steps that you need to do:
 #### Download and upload
-1. Download the source code of this plugin.
-2. Change the root folder of this source code to `xendit`. The desired folder structure should look like this:
-```
-|xendit
-    |language
-        |..
-    |xendit
-        |..
-    |README.md
-    |xendit.php
-    |xendit.xml
-```
-3. Using an FTP or any other means, upload the `xendit` folder to your server's VM Payment plugin folder. It should be in this directory: `ROOT_JOOMLA_DIR/plugins/vmpayment`.
+1. Download [the latest release](https://github.com/xendit/virtuemart-module/releases/latest/download/virtuemart-module.zip).
+2. On your store's administrator page, go to `Extensions -> Install` page
+3. Select `Upload Package File`
+4. Upload the downloaded file from step 1
+5. You should get a message saying that your installation is successful
 
 #### Activate
 1. On your store's administrator page, go to `Extensions -> Discover` page
