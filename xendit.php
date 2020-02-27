@@ -142,11 +142,102 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		if (!$this->selectedThisElement($this->_currentMethod->payment_element)) {
 			return FALSE;
 		}
+        if (!class_exists('VirtueMartModelOrders')) {
+			require(VMPATH_ADMIN . DS . 'models' . DS . 'orders.php');
+        }
 		$xenditInterface = $this->_loadXenditInterface();
 		$this->logInfo('plgVmConfirmedOrder order number: ' . $order['details']['BT']->order_number, 'message');
-		$xenditInterface->confirmedOrder($cart, $order);
 
-        return;
+		vmLanguage::loadJLang('com_virtuemart',true);
+		vmLanguage::loadJLang('com_virtuemart_orders', TRUE);
+
+		$this->getPaymentCurrency($method, $order['details']['BT']->payment_currency_id);
+		$currency_code_3 = shopFunctions::getCurrencyByID($method->payment_currency, 'currency_code_3');
+		$email_currency = $this->getEmailCurrency($method);
+
+		$totalInPaymentCurrency = vmPSPlugin::getAmountInCurrency($order['details']['BT']->order_total,$method->payment_currency);
+
+		if (!empty($method->payment_info)) {
+			$lang = JFactory::getLanguage ();
+			if ($lang->hasKey ($method->payment_info)) {
+				$method->payment_info = vmText::_ ($method->payment_info);
+			}
+		}
+
+        $order_number = $order['details']['BT']->order_number;
+        $order_amount = $totalInPaymentCurrency['value'];
+
+        $dbValues['virtuemart_order_id'] = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number);
+		$dbValues['order_number'] = $order_number;
+		$dbValues['virtuemart_paymentmethod_id'] = $order['details']['BT']->virtuemart_paymentmethod_id;
+		$dbValues['payment_name'] = $this->renderPluginName ($method) . '<br />' . $method->payment_info;
+        $dbValues['payment_order_total'] = $totalInPaymentCurrency['value'];
+
+        $address = ((isset($order['details']['ST'])) ? $order['details']['ST'] : $order['details']['BT']);
+        $store_name = 'Mock Store Name';
+
+        $invoice_data = array(
+            'external_id' => "virtuemart-xendit-$store_name-$order_number",
+            'amount' => $order_amount,
+            'payer_email' => !empty($address->email) ? $address->email : 'virtuemartNoReply@xendit.co',
+            'description' => "Payment for Order #{$order_number} at $store_name",
+            'client_type' => 'INTEGRATION',
+            'success_redirect_url' => self::getSuccessUrl($order),
+            'failure_redirect_url' => self::getCancelUrl($order),
+            'platform_callback_url' => self::getNotificationUrl($order)
+        );
+        $invoice_header = array(
+            'x-plugin-method: BRI',
+            'x-plugin-store-name: ' . $store_name
+        );
+
+        try {
+            $invoice_response = $xenditInterface->createInvoice($invoice_data, $invoice_header);
+
+            if (isset($invoice_response['error_code'])) {
+                vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $invoice_response['error_code'], $invoice_response['message']));
+                vmInfo(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $invoice_response['error_code'], $invoice_response['message']));
+                $this->redirectToCart();
+                return;
+            }
+    
+            $dbValues['xendit_invoice_id'] = $invoice_response['id'];
+            $dbValues['xendit_invoice_url'] = $invoice_response['invoice_url'];
+            $dbValues['xendit_status'] = $invoice_response['status'];
+            $this->storePSPluginInternalData ($dbValues);
+    
+            $currency = CurrencyDisplay::getInstance ('', $order['details']['BT']->virtuemart_vendor_id);
+    
+            $modelOrder = VmModel::getModel ('orders');
+            $order['order_status'] = $this->getNewStatus ($method);
+            $order['customer_notified'] = 1;
+            $order['comments'] = 'Checkout using Xendit';
+            $modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
+    
+            $mainframe = JFactory::getApplication();
+            $mainframe->redirect($invoice_response['invoice_url'] . '#bni');
+        } catch (Exception $e) {
+            vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
+            vmInfo(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
+            $this->redirectToCart();
+            return;
+        }
+    }
+    
+    /**
+     * Redirect to cart in case of error
+     */
+    function redirectToCart ($msg = NULL) {
+		$app = JFactory::getApplication();
+		$app->redirect(self::getCancelUrl(), $msg);
+	}
+
+	/**
+     * Keep backwards compatibility
+     * a new parameter has been added in the xml file
+     */
+	function getNewStatus ($method) {
+        return 'P';
 	}
 
     /**
@@ -198,9 +289,9 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
 		$this->debugLog('"<pre>plgVmOnPaymentResponseReceived :' . var_export($xendit_data, true) . "</pre>", 'debug');
 		$xenditInterface = $this->_loadXenditInterface();
-		$html = $xenditInterface->paymentResponseReceived($xendit_data);
-		vRequest::setVar('display_title', false);
-		vRequest::setVar('html', $html);
+		// $html = $xenditInterface->paymentResponseReceived($xendit_data);
+		// vRequest::setVar('display_title', false);
+		// vRequest::setVar('html', $html);
 		return true;
 	}
 
@@ -613,5 +704,36 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		} else {
 			return $debug;
 		}
+    }
+    
+    /*********************/
+	/* Static functions */
+    /*********************/
+    
+    /**
+     * Return URL to thank you page
+     * @param order $order
+     * @return string
+     */
+    static function getSuccessUrl ($order) {
+		return JURI::root()."index.php?option=com_virtuemart&view=pluginresponse&task=pluginresponsereceived&pm=" . $order['details']['BT']->virtuemart_paymentmethod_id . '&on=' . $order['details']['BT']->order_number . "&Itemid=" . vRequest::getInt('Itemid'). '&lang='.vRequest::getCmd('lang','');
 	}
+
+    /**
+     * Return URL to cart
+     * @return string
+     */
+	static function getCancelUrl () {
+		return  JRoute::_('index.php?option=com_virtuemart&view=cart&Itemid=' . vRequest::getInt('Itemid').'&lang='.vRequest::getCmd('lang',''), false);
+	}
+    
+    /**
+     * Return callback URL. Still not final.
+     * @param order $order
+     * @return string
+     */
+	static function getNotificationUrl ($order) {
+		return JURI::root()  .  "index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&tmpl=component&pm=" . $order['details']['BT']->virtuemart_paymentmethod_id . '&on=' . $order['details']['BT']->order_number . '&lang='.vRequest::getCmd('lang','');
+    }
+    
 }
