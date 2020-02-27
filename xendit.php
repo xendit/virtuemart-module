@@ -205,60 +205,122 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	}
 
 	/**
+	 * Callback
 	 * This event is fired by Offline Payment. It can be used to validate the payment data as entered by the user.
 	 * Return:
-     *
-	 * @author Valerie Isaksen
+	 * @link: index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&tmpl=component&xendit_mode=[xendit_mode]
+	 * xendit_mode:
+	 * 		- xendit_invoice_callback
+	 * 		- xendit_cc_callback (not support yet)
+	 * 
+	 * @author Xendit
+	 * 
 	 */
 	function plgVmOnPaymentNotification() {
-
-		if (!class_exists('VirtueMartModelOrders')) {
-			require(VMPATH_ADMIN . DS . 'models' . DS . 'orders.php');
-		}
-		$xendit_data = $_POST;
-
-		$virtuemart_paymentmethod_id = vRequest::getInt('pm', 0);
-		$this->_currentMethod = $this->getVmPluginMethod($virtuemart_paymentmethod_id);
-		if (!$this->selectedThisElement($this->_currentMethod->payment_element)) {
-			return;
-		}
-		$xendit_data_log=$xendit_data;
-		unset($xendit_data_log['K']);
-		$this->debugLog(var_export($xendit_data_log, true), 'plgVmOnPaymentNotification', 'debug', false);
-		$xenditInterface = $this->_loadXenditInterface();
-		if (!$xenditInterface->isXenditResponseValid( $xendit_data, true, false)) {
-			return FALSE;
-		}
-		$order_number = $xenditInterface->getOrderNumber($xendit_data['R']);
-		if (empty($order_number)) {
-			$this->debugLog($order_number, 'getOrderNumber not correct' . $xendit_data['R'], 'debug', false);
-			return FALSE;
-		}
-		if (!($virtuemart_order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number))) {
-			return FALSE;
-		}
-
-		if (!($payments = $this->getPluginDatasByOrderId($virtuemart_order_id))) {
-			$this->debugLog('no payments found', 'getDatasByOrderId', 'debug', false);
-			return FALSE;
-		}
-
-		$orderModel = VmModel::getModel('orders');
-		$order = $orderModel->getOrder($virtuemart_order_id);
-		$extra_comment = "";
-		if (count($payments) == 1) {
-			// NOTIFY not received
-			$order_history = $xenditInterface->updateOrderStatus($xendit_data, $order, $payments);
-			if (isset($order_history['extra_comment'])) {
-				$extra_comment = $order_history['extra_comment'];
+		
+		if (isset($_REQUEST['xendit_mode'])) {
+			if (!class_exists('VirtueMartModelOrders')) {
+				require(VMPATH_ADMIN . DS . 'models' . DS . 'orders.php');
+			}
+		
+			// if ($_REQUEST['xendit_mode'] == 'xendit_invoice_callback') {
+			// 	$xendit = new xenditInvoice();
+			// }
+			
+			if (($_SERVER["REQUEST_METHOD"] === "POST")) {
+				$data = file_get_contents("php://input");
+				$response = json_decode($data);
+				
+				$this->validate_payment($response);
 			}
 		}
+		
+		die('done');
+	}
+	
+	public function validate_payment($response)
+	{
+		$orderId = $response->external_id;
+        
+        if ($orderId) {
+            $explodedExtId = explode("-", $orderId);
+            $order_number = end($explodedExtId);
 
-		if (!empty($payments[0]->paybox_custom)) {
-			$this->emptyCart($payments[0]->paybox_custom, $order['details']['BT']->order_number);
-			$this->setEmptyCartDone($payments[0]);
-		}
-		return TRUE;
+			$order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number);
+			$orderModel = VmModel::getModel('orders');
+			
+			$order = $orderModel->getOrder($order_id);
+
+            // if ($this->developmentmode != 'yes') {
+            //     $payment_gateway = wc_get_payment_gateway_by_order($order->id);
+            //     if (false === get_post_status($order->id) || strpos($payment_gateway->id, 'xendit')) {
+            //         header('HTTP/1.1 400 Invalid Data Received');
+            //         exit;
+            //     }
+            // }
+
+            $invoice = $this->xenditClass->getInvoice($response->id); // get invoice base on response id
+
+            if (isset($invoice['error_code'])) {
+                header('HTTP/1.1 400 Invalid Invoice Data Received');
+                exit;
+            }
+			
+			var_dump($invoice);
+			
+			return;
+			
+            if ('PAID' == $invoice['status'] || 'SETTLED' == $invoice['status']) {
+
+                $notes = json_encode(
+                    array(
+                        'invoice_id' => $invoice['id'],
+                        'status' => $invoice['status'],
+                        'payment_method' => $invoice['payment_method'],
+                        'paid_amount' => $invoice['paid_amount'],
+                    )
+                );
+
+                $note = "Xendit Payment Response:" . "{$notes}";
+
+                $order->add_order_note('Xendit payment successful');
+                $order->add_order_note($note);
+
+                // Do mark payment as complete
+                $order->payment_complete();
+
+                // Reduce stock levels
+                $order->reduce_order_stock();
+
+                // Empty cart in action
+                $woocommerce->cart->empty_cart();
+
+                //die(json_encode($response, JSON_PRETTY_PRINT)."\n");
+                die('SUCCESS');
+            } else {
+                $order->update_status('failed');
+
+                $notes = json_encode(
+                    array(
+                        'invoice_id' => $invoice['id'],
+                        'status' => $invoice['status'],
+                        'payment_method' => $invoice['payment_method'],
+                        'paid_amount' => $invoice['paid_amount'],
+                    )
+                );
+
+                $note = "Xendit Payment Response:" . "{$notes}";
+
+                $order->add_order_note('Xendit payment failed');
+                $order->add_order_note($note);
+
+                header('HTTP/1.1 400 Invalid Data Received');
+                exit;
+            }
+        } else {
+            header('HTTP/1.1 400 Invalid Data Received');
+            exit;
+        }
 	}
 
 	/**
