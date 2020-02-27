@@ -1,17 +1,28 @@
 <?php
 
-if (!defined('ABSPATH')) {
-    exit;
-}
+defined('_JEXEC') or die('Restricted access');
 
 class XenditApi {
 
-    function __construct ($options) {
+    function __construct ($method) {
         $this->server_domain = 'https://api.xendit.co';
         $this->tpi_server_domain = 'https://tpi.xendit.co';
+        //print_r($method);echo "<br><br>";
 
-        $this->secret_api_key = $options['secret_api_key'];
-        $this->public_api_key = $options['public_api_key'];
+        $this->environment = $method->shop_mode ? $method->shop_mode : 'test';
+
+        if (($this->environment=='test' && (empty($method->xendit_gateway_public_api_key_dev) || empty($method->xendit_gateway_secret_api_key_dev)))
+            ||
+            ($this->environment!='test' && (empty($method->xendit_gateway_public_api_key) || empty($method->xendit_gateway_secret_api_key)))){
+            $text = vmText::sprintf('VMPAYMENT_XENDIT_PARAMETER_REQUIRED');
+            vmError($text, $text);
+            
+			return FALSE;
+        }
+
+        $this->secret_api_key = $this->environment=='test' ? $method->xendit_gateway_public_api_key_dev : $method->xendit_gateway_public_api_key;
+        $this->public_api_key = $this->environment!='test' ? $method->xendit_gateway_public_api_key : $method->xendit_gateway_public_api;
+
     }
 
     private function getHeader() {
