@@ -71,16 +71,14 @@ class plgVmpaymentXendit extends vmPSPlugin {
      */
 	function getTableSQLFields() {
 
-        // TODO: need to research which fields are important.
-        // From Xendit, I think we need to store invoice ID, charge ID (later), xendit_status, xendit_url?
 		$SQLfields = array(
 			'id'                          => 'int(11) UNSIGNED NOT NULL AUTO_INCREMENT',
 			'virtuemart_order_id'         => 'int(1) UNSIGNED',
-			'order_number'                => ' char(64)',
+			'order_number'                => 'char(64)',
 			'virtuemart_paymentmethod_id' => 'mediumint(1) UNSIGNED',
-			'payment_name'                => 'varchar(5000)',
-			'payment_order_total'         => 'decimal(15,5) NOT NULL DEFAULT \'0.00000\'',
-			'payment_fee'                 => 'decimal(10,2)',
+			'payment_name'                => 'varchar(255)',
+			'payment_order_total'         => 'decimal(15,4) NOT NULL DEFAULT \'0.0000\'',
+			'payment_currency'            => 'varchar(50)',
 			'xendit_status'               => 'varchar(50)',
 			'xendit_invoice_id'           => 'varchar(255)',
 			'xendit_invoice_url'          => 'varchar(255)',
@@ -123,7 +121,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		//set global variables for checkout page functions
 		$this->_currentMethod = $method;
 		$this->currencyId = $method->currency_id;
-		$this->paymentType = $method->xendit_gateway_payment_type;
+		$this->paymentType = $method->xendit_gateway_payment_type; //print_r($method);
 
         $xenditInterface = $this->_loadXenditInterface();
         $total_price = $cart_prices['salesPrice'] + $cart_prices['salesPriceShipment'];
@@ -183,8 +181,9 @@ class plgVmpaymentXendit extends vmPSPlugin {
         $dbValues['virtuemart_order_id'] = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number);
 		$dbValues['order_number'] = $order_number;
 		$dbValues['virtuemart_paymentmethod_id'] = $order['details']['BT']->virtuemart_paymentmethod_id;
-		$dbValues['payment_name'] = $this->renderPluginName($this->_currentMethod, $order);
-        $dbValues['payment_order_total'] = $order_amount;
+		$dbValues['payment_name'] = $this->_currentMethod->payment_name;
+		$dbValues['payment_order_total'] = $order_amount;
+		$dbValues['payment_currency'] = $this->currencyId;
 
         $address = ((isset($order['details']['ST'])) ? $order['details']['ST'] : $order['details']['BT']);
 
@@ -210,7 +209,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
         try {
             $invoice_response = $xenditInterface->createInvoice($invoice_data, $invoice_header);
 
-            if (isset($invoice_response['error_code'])) { //echo 'here'; exit;
+            if (isset($invoice_response['error_code'])) {
                 $xendit_error = $this->getXenditErrorMessage($invoice_response);
                 vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $xendit_error['title'], $xendit_error['message']));
                 $this->redirectToCart();
@@ -221,8 +220,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
             $dbValues['xendit_invoice_url'] = $invoice_response['invoice_url'];
             $dbValues['xendit_status'] = $invoice_response['status'];
             $this->storePSPluginInternalData ($dbValues);
-    
-            $currency = CurrencyDisplay::getInstance ('', $order['details']['BT']->virtuemart_vendor_id);
     
             $modelOrder = VmModel::getModel ('orders');
             $order['order_status'] = $this->getNewStatus ($this->_currentMethod);
@@ -477,11 +474,50 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		if (!($this->_currentMethod = $this->getVmPluginMethod($virtuemart_paymentmethod_id))) {
 			return NULL; // Another method was selected, do nothing
 		}
+		if (!($payments = $this->getXenditInternalData($virtuemart_order_id))) {
+			// JError::raiseWarning(500, $db->getErrorMsg());
+			return '';
+		}
+		$payment = $payments[0];
+		
+		$html = '<table class="adminlist table" >' . "\n";
+		$html .= $this->getHtmlHeaderBE();
+		$html .= $this->getHtmlRowBE('Date', $payment->created_on);
+		$html .= $this->getHtmlRowBE('Payment Name', $payment->payment_name);
+		$html .= $this->getHtmlRowBE('Total', number_format($payment->payment_order_total) . " " . shopFunctions::getCurrencyByID($payment->payment_currency, 'currency_code_3'));
+		
+		if ($payment->xendit_invoice_id) {
+			$html .= $this->getHtmlRowBE('Xendit Invoice ID', '<a href="'.$payment->xendit_invoice_url.'" target="blank">' . $payment->xendit_invoice_id . '</a>');
+		}
+		if ($payment->xendit_charge_id) {
+			$html .= $this->getHtmlRowBE('Xendit Charge ID', $payment->xendit_charge_id);
+		}
 
-		$xenditInterface = $this->_loadXenditInterface();
-		$html = $xenditInterface->showOrderBEPayment($virtuemart_order_id);
+		$html .= '</table>' . "\n";
 
 		return $html;
+	}
+
+	/**
+	 * @param int $virtuemart_order_id
+	 * @param string $order_number
+	 * @return mixed|string
+	 */
+	private function getXenditInternalData($virtuemart_order_id, $order_number = '') {
+		if (empty($order_number)) {
+			$orderModel = VmModel::getModel('orders');
+			$order_number = $orderModel->getOrderNumber($virtuemart_order_id);
+		}
+		$db = JFactory::getDBO();
+		$q = 'SELECT * FROM `' . $this->_tablename . '` WHERE ';
+		$q .= " `order_number` = '" . $order_number . "'";
+
+		$db->setQuery($q);
+		if (!($payments = $db->loadObjectList())) {
+			// JError::raiseWarning(500, $db->getErrorMsg());
+			return '';
+		}
+		return $payments;
 	}
 
 	function getCosts(VirtueMartCart $cart, $method, $cart_prices) {
