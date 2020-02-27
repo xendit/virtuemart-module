@@ -18,7 +18,6 @@ class XenditApi {
             ($this->environment!='test' && (empty($method->xendit_gateway_public_api_key) || empty($method->xendit_gateway_secret_api_key)))){
             $text = vmText::sprintf('VMPAYMENT_XENDIT_PARAMETER_REQUIRED');
             vmError($text, $text);
-            vmError('Environment: ' . $method->xendit_gateway_public_api_key_dev);
 
 			return FALSE;
         }
