@@ -176,7 +176,9 @@ class plgVmpaymentXendit extends vmPSPlugin {
         $dbValues['payment_order_total'] = $totalInPaymentCurrency['value'];
 
         $address = ((isset($order['details']['ST'])) ? $order['details']['ST'] : $order['details']['BT']);
-        $store_name = 'Mock Store Name';
+
+        $site_config = JFactory::getConfig();
+        $store_name = $site_config->get('sitename');
         $ext_id_store_name = substr(preg_replace("/[^a-z0-9]/mi", "", $store_name), 0, 20);
 
         $invoice_data = array(
@@ -268,6 +270,11 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		return TRUE;
 	}
 
+    /**
+     * Display order information after redirected from Xendit PG. Assign HTML to vRequest.
+     * 
+     * @return boolean
+     */
 	function plgVmOnPaymentResponseReceived(&$html) {
         if (!class_exists('VirtueMartCart')) {
 			require(VMPATH_SITE . DS . 'helpers' . DS . 'cart.php');
@@ -693,7 +700,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
      * @return string
      */
 	static function getCancelUrl () {
-		return  JRoute::_('index.php?option=com_virtuemart&view=cart&Itemid=' . vRequest::getInt('Itemid').'&lang='.vRequest::getCmd('lang',''), false);
+		return  JURI::root().'index.php?option=com_virtuemart&view=cart&Itemid=' . vRequest::getInt('Itemid').'&lang='.vRequest::getCmd('lang','');
 	}
     
     /**
