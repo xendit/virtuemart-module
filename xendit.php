@@ -343,7 +343,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		return TRUE;
 	}
 
-	/**
+	/** -- NOT CONFIGURED --
 	 * This event is fired by Offline Payment. It can be used to validate the payment data as entered by the user.
 	 * Return:
      *
@@ -393,57 +393,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			}
 		}
 
-		if (!empty($payments[0]->paybox_custom)) {
-			$this->emptyCart($payments[0]->paybox_custom, $order['details']['BT']->order_number);
-			$this->setEmptyCartDone($payments[0]);
-		}
 		return TRUE;
-	}
-
-	/**
-	 * @param $xendit_data
-	 * @return bool
-	 */
-	function paymentNotification ($xendit_data) {
-
-		if (!$this->isXenditResponseValid( $xendit_data, true, false)) {
-			return FALSE;
-		}
-		$order_number = $this->getOrderNumber($xendit_data['R']);
-		if (empty($order_number)) {
-			$this->plugin->debugLog($order_number, 'getOrderNumber not correct' . $xendit_data['R'], 'debug', false);
-			return FALSE;
-		}
-		if (!($virtuemart_order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number))) {
-			return FALSE;
-		}
-
-		if (!($payments = $this->plugin->getPluginDatasByOrderId($virtuemart_order_id))) {
-			$this->plugin->debugLog('no payments found', 'getDatasByOrderId', 'debug', false);
-			return FALSE;
-		}
-
-		$orderModel = VmModel::getModel('orders');
-		$order = $orderModel->getOrder($virtuemart_order_id);
-		$extra_comment = "";
-		if (count($payments) == 1) {
-			// NOTIFY not received
-			$order_history = $this->updateOrderStatus($xendit_data, $order, $payments);
-			if (isset($order_history['extra_comment'])) {
-				$extra_comment = $order_history['extra_comment'];
-			}
-		}
-
-		return $payments[0]->paybox_custom;
-	}
-
-	/**
-	 * @param $firstPayment
-	 */
-	function setEmptyCartDone($firstPayment) {
-		$firstPayment = (array)$firstPayment;
-		$firstPayment['xendit_custom'] = NULL;
-		$this->storePSPluginInternalData($firstPayment, $this->_tablepkey, true);
 	}
 
 	function storePSPluginInternalData($values, $primaryKey = 0, $preload = FALSE) {
@@ -780,5 +730,4 @@ class plgVmpaymentXendit extends vmPSPlugin {
             );
         }
     }
-    
 }
