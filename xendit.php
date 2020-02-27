@@ -31,7 +31,8 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
 		// Xendit custom parameters
         $this->defaultMinimumAmount = 10000;
-        $this->defaultMaximumAmount = 1000000000;
+		$this->defaultMaximumAmount = 1000000000;
+		$this->defaultCCMaximumAmount = 200000000;
 	}
 
 	/**
@@ -119,13 +120,21 @@ class plgVmpaymentXendit extends vmPSPlugin {
      */
     function checkConditions($cart, $method, $cart_prices) {
 
-        $this->_currentMethod = $method;
+		//set global variables for checkout page functions
+		$this->_currentMethod = $method;
+		$this->currencyId = $method->currency_id;
+		$this->paymentType = $method->xendit_gateway_payment_type;
 
         $xenditInterface = $this->_loadXenditInterface();
         $total_price = $cart_prices['salesPrice'] + $cart_prices['salesPriceShipment'];
 
-        if ($total_price < $this->defaultMinimumAmount || $total_price > $this->defaultMaximumAmount) {
+        if ($total_price < $this->defaultMinimumAmount) {
             return FALSE;
+		}
+		if ($paymentType == 'CC' && $total_price > $this->defaultCCMaximumAmount) {
+			return FALSE;
+		} else if ($total_price > $this->defaultMaximumAmount) {
+			return FALSE;
 		}
 
 		return TRUE;
@@ -218,8 +227,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
             $order['customer_notified'] = 1;
             $order['comments'] = 'Checkout using Xendit';
             $modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
-
-            $cart->emptyCart();
     
             $mainframe = JFactory::getApplication();
             $mainframe->redirect($invoice_response['invoice_url'] . '#bni');
@@ -248,6 +255,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
     /**
      * Check if we support the payment currency used by this order.
+	 * Call on checkout page load if Xendit PG is default option.
      */
 	function plgVmgetPaymentCurrency($virtuemart_paymentmethod_id, &$paymentCurrencyId) {
 
@@ -258,14 +266,13 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			return FALSE;
 		}
 
-		// $currencyCode = shopFunctions::getCurrencyByID($paymentCurrencyId, 'currency_code_3');
-        // if ($currencyCode !== 'IDR') {
-        //     $text = vmText::sprintf('VMPAYMENT_XENDIT_UNSUPPORTED_CURRENCY');
-        //     vmError($text, $text);
-        //     vmError('Currency code: ' . $paymentCurrencyId);
+		$currencyCode = shopFunctions::getCurrencyByID($this->currencyId, 'currency_code_3');
+        if ($currencyCode !== 'IDR') {
+            $text = vmText::sprintf('VMPAYMENT_XENDIT_UNSUPPORTED_CURRENCY');
+            vmError($text, $text);
             
-		// 	return FALSE;
-        // }
+			return FALSE;
+        }
 
 		return TRUE;
 	}
@@ -330,6 +337,10 @@ class plgVmpaymentXendit extends vmPSPlugin {
             'displayTotalInPaymentCurrency' => $totalInPaymentCurrency['display']
         ));
 		vRequest::setVar ('html', $html);
+
+		$cart = VirtueMartCart::getCart();
+		$cart->emptyCart();
+
 		return TRUE;
 	}
 
@@ -468,7 +479,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		$xenditInterface = $this->_loadXenditInterface();
 		$html = $xenditInterface->showOrderBEPayment($virtuemart_order_id);
 
-
 		return $html;
 	}
 
@@ -490,7 +500,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	 * @author Valérie isaksen
 	 *
 	 * @param VirtueMartCart $cart: the actual cart
-	 * @return null if the payment was not selected, true if the data is valid, error message if the data is not vlaid
+	 * @return null if the payment was not selected, true if the data is valid, error message if the data is not valid
 	 *
 	 */
 	public function plgVmOnSelectCheckPayment(VirtueMartCart $cart, &$msg) {
