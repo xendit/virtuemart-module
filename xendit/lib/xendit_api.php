@@ -3,6 +3,8 @@
 defined('_JEXEC') or die('Restricted access');
 
 class XenditApi {
+    const METHOD_POST = 'POST';
+    const METHOD_GET = 'GET';
 
     function __construct ($method) {
         $this->server_domain = 'https://api.xendit.co';
@@ -11,16 +13,17 @@ class XenditApi {
 
         $this->environment = $method->shop_mode ? $method->shop_mode : 'test';
 
-        if (($this->environment=='test' && (empty($method->xendit_gateway_public_api_key_dev) || empty($method->xendit_gateway_secret_api_key_dev)))
-            ||
-            ($this->environment!='test' && (empty($method->xendit_gateway_public_api_key) || empty($method->xendit_gateway_secret_api_key)))){
-            $text = vmText::sprintf('VMPAYMENT_XENDIT_PARAMETER_REQUIRED');
-            vmError($text, $text);
+        // if (($this->environment=='test' && (empty($method->xendit_gateway_public_api_key_dev) || empty($method->xendit_gateway_secret_api_key_dev)))
+        //     ||
+        //     ($this->environment!='test' && (empty($method->xendit_gateway_public_api_key) || empty($method->xendit_gateway_secret_api_key)))){
+        //     $text = vmText::sprintf('VMPAYMENT_XENDIT_PARAMETER_REQUIRED');
+        //     vmError($text, $text);
             
-			return FALSE;
-        }
+		// 	return FALSE;
+        // }
 
-        $this->secret_api_key = $this->environment=='test' ? $method->xendit_gateway_public_api_key_dev : $method->xendit_gateway_public_api_key;
+        // $this->secret_api_key = $this->environment=='test' ? $method->xendit_gateway_public_api_key_dev : $method->xendit_gateway_public_api_key;
+        $this->secret_api_key = 'xnd_development_O4iAfOUs3bX+kZU/euIcGGLEMNem99QtkSfp+Rxj/2Xf/rKpCwB0gA==';
         $this->public_api_key = $this->environment!='test' ? $method->xendit_gateway_public_api_key : $method->xendit_gateway_public_api;
 
     }
