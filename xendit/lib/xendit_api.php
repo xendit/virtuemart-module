@@ -1,40 +1,28 @@
 <?php
 
 defined('_JEXEC') or die('Restricted access');
-/**
- * @mainpage
- * Base class for XENDIT Api
- * This class implements basic http authentication and a JSON-parser
- * for parsing response messages
- *
- * Requires libcurl and openssl
- *
- * Copyright (c) 2020 XENDIT
- *
- * Released under the GNU General Public License (Version 2)
- * [http://www.gnu.org/licenses/gpl-2.0.html]
- *
- * $Date: 2020-02-26 17:15:47 +0700 $
- * @version XenditLib 1.0.0  $Id: xenditLib.php 5773 2012-11-23 16:15:47Z dehn $
- * @author XENDIT AG https://www.xendit.co (thirdpartyintegrations@xendit.co)
- *
- */
-
-if(!defined('XENDITLIB_VERSION')) {
-	define('XENDITLIB_VERSION','1.0.0');
-}
 
 class XenditApi {
 
-    const METHOD_POST = 'POST';
-    const METHOD_GET = 'GET';
-
-    function __construct ($options) {
+    function __construct ($method) {
         $this->server_domain = 'https://api.xendit.co';
         $this->tpi_server_domain = 'https://tpi.xendit.co';
+        //print_r($method);echo "<br><br>";
 
-        $this->secret_api_key = $options['secret_api_key'];
-        $this->public_api_key = $options['public_api_key'];
+        $this->environment = $method->shop_mode ? $method->shop_mode : 'test';
+
+        if (($this->environment=='test' && (empty($method->xendit_gateway_public_api_key_dev) || empty($method->xendit_gateway_secret_api_key_dev)))
+            ||
+            ($this->environment!='test' && (empty($method->xendit_gateway_public_api_key) || empty($method->xendit_gateway_secret_api_key)))){
+            $text = vmText::sprintf('VMPAYMENT_XENDIT_PARAMETER_REQUIRED');
+            vmError($text, $text);
+            
+			return FALSE;
+        }
+
+        $this->secret_api_key = $this->environment=='test' ? $method->xendit_gateway_public_api_key_dev : $method->xendit_gateway_public_api_key;
+        $this->public_api_key = $this->environment!='test' ? $method->xendit_gateway_public_api_key : $method->xendit_gateway_public_api;
+
     }
 
     function getHeader() {
