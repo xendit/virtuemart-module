@@ -142,8 +142,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	
     /**
      * Trigerred when end user click the "Confirm Purchase" button.
-     * 
-     * Can we redirect to invoice URL here?
      */
 	function plgVmConfirmedOrder($cart, $order) {
 
@@ -155,34 +153,38 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		}
         if (!class_exists('VirtueMartModelOrders')) {
 			require(VMPATH_ADMIN . DS . 'models' . DS . 'orders.php');
-        }
+		}
+		
 		$xenditInterface = $this->_loadXenditInterface();
 		$this->logInfo('plgVmConfirmedOrder order number: ' . $order['details']['BT']->order_number, 'message');
 
-		vmLanguage::loadJLang('com_virtuemart',true);
+		vmLanguage::loadJLang('com_virtuemart', TRUE);
 		vmLanguage::loadJLang('com_virtuemart_orders', TRUE);
 
-		$this->getPaymentCurrency($method, $order['details']['BT']->payment_currency_id);
-		$currency_code_3 = shopFunctions::getCurrencyByID($method->payment_currency, 'currency_code_3');
-		$email_currency = $this->getEmailCurrency($method);
+		$this->getPaymentCurrency($this->_currentMethod, $order['details']['BT']->payment_currency_id);
+		$email_currency = $this->getEmailCurrency($this->_currentMethod);
 
-		$totalInPaymentCurrency = vmPSPlugin::getAmountInCurrency($order['details']['BT']->order_total,$method->payment_currency);
+		$order_number = $order['details']['BT']->order_number;
 
-		if (!empty($method->payment_info)) {
-			$lang = JFactory::getLanguage ();
-			if ($lang->hasKey ($method->payment_info)) {
-				$method->payment_info = vmText::_ ($method->payment_info);
-			}
+		$totalInPaymentCurrency = vmPSPlugin::getAmountInCurrency($order['details']['BT']->order_total, $this->_currentMethod->payment_currency);
+		/**
+		 * AMOUNT VALIDATION
+		 * $totalInPaymentCurrency returns an array of 'value & 'display'
+		 * 'value' is unformatted & may contain decimals as a result of currency conversion, tax, etc
+		 * We'll reject if 'value' is not an integer
+		 */
+		$order_amount = $totalInPaymentCurrency['value'];
+		if ((int)$order_amount != $totalInPaymentCurrency['value']) {
+            vmError(vmText::sprintf('VMPAYMENT_XENDIT_INVALID_AMOUNT'));
+			$this->redirectToCart();
+            return;
 		}
-
-        $order_number = $order['details']['BT']->order_number;
-        $order_amount = $totalInPaymentCurrency['value'];
 
         $dbValues['virtuemart_order_id'] = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number);
 		$dbValues['order_number'] = $order_number;
 		$dbValues['virtuemart_paymentmethod_id'] = $order['details']['BT']->virtuemart_paymentmethod_id;
-		$dbValues['payment_name'] = $this->renderPluginName ($method) . '<br />' . $method->payment_info;
-        $dbValues['payment_order_total'] = $totalInPaymentCurrency['value'];
+		$dbValues['payment_name'] = $this->renderPluginName($this->_currentMethod, $order);
+        $dbValues['payment_order_total'] = $order_amount;
 
         $address = ((isset($order['details']['ST'])) ? $order['details']['ST'] : $order['details']['BT']);
 
@@ -192,7 +194,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
         $invoice_data = array(
             'external_id' => "virtuemart-xendit-$ext_id_store_name-$order_number",
-            'amount' => $order_amount,
+            'amount' => (int)$order_amount,
             'payer_email' => !empty($address->email) ? $address->email : 'virtuemartNoReply@xendit.co',
             'description' => "Payment for Order #{$order_number} at $store_name",
             'client_type' => 'INTEGRATION',
@@ -201,14 +203,14 @@ class plgVmpaymentXendit extends vmPSPlugin {
             'platform_callback_url' => self::getNotificationUrl($order)
         );
         $invoice_header = array(
-            'x-plugin-method: BRI',
+            'x-plugin-method: ' . $this->paymentType,
             'x-plugin-store-name: ' . $store_name
         );
 
         try {
             $invoice_response = $xenditInterface->createInvoice($invoice_data, $invoice_header);
 
-            if (isset($invoice_response['error_code'])) {
+            if (isset($invoice_response['error_code'])) { //echo 'here'; exit;
                 $xendit_error = $this->getXenditErrorMessage($invoice_response);
                 vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $xendit_error['title'], $xendit_error['message']));
                 $this->redirectToCart();
@@ -223,13 +225,13 @@ class plgVmpaymentXendit extends vmPSPlugin {
             $currency = CurrencyDisplay::getInstance ('', $order['details']['BT']->virtuemart_vendor_id);
     
             $modelOrder = VmModel::getModel ('orders');
-            $order['order_status'] = $this->getNewStatus ($method);
+            $order['order_status'] = $this->getNewStatus ($this->_currentMethod);
             $order['customer_notified'] = 1;
             $order['comments'] = 'Checkout using Xendit';
             $modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
     
             $mainframe = JFactory::getApplication();
-            $mainframe->redirect($invoice_response['invoice_url'] . '#bni');
+            $mainframe->redirect($invoice_response['invoice_url'] . '#' . $this->paymentType);
         } catch (Exception $e) {
             vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
             $this->redirectToCart();
