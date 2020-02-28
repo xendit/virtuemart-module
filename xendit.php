@@ -426,6 +426,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		
 		if (isset($invoice['error_code'])) {
 			header('HTTP/1.1 400 Invalid Invoice Data Received');
+			echo('Error when getting invoice to TPI service');
 			exit;
 		}
 
@@ -480,6 +481,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		
 		if (isset($charge['error_code'])) {
 			header('HTTP/1.1 400 Invalid Charge Data Received');
+			echo('Error when getting charge to TPI service');
 			exit;
 		}
 
