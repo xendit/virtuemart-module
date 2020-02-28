@@ -362,7 +362,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 				require(VMPATH_ADMIN . DS . 'models' . DS . 'orders.php');
 			}
 		
-			if ($_REQUEST['xendit_mode'] == 'xendit_invoice_callback') {
+			if ($_REQUEST['xendit_mode'] == 'xendit_callback') {
 				
 				if (($_SERVER["REQUEST_METHOD"] === "POST")) {
 					$data = file_get_contents("php://input");
@@ -529,7 +529,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		$orderModel = VmModel::getModel('orders');
 		$order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number);
 		$order = $orderModel->getOrder($order_id);
-		var_dump($order);exit;
 		$amount = $order['details']['BT']->order_total;
 
 		$separated_external_id = explode("-", $response['external_id']);
@@ -860,7 +859,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
      * @return string
      */
 	static function getNotificationUrl ($order) {
-		return JURI::root()  .  "index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&tmpl=component&pm=" . $order['details']['BT']->virtuemart_paymentmethod_id . '&on=' . $order['details']['BT']->order_number . '&lang='.vRequest::getCmd('lang','');
+		return JURI::root()  .  "index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&tmpl=component&pm=" . $order['details']['BT']->virtuemart_paymentmethod_id . '&on=' . $order['details']['BT']->order_number . '&lang='.vRequest::getCmd('lang','') . '&xendit_mode=xendit_callback';
     }
 
     /**
