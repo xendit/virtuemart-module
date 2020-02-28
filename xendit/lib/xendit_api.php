@@ -49,20 +49,14 @@ class XenditApi {
         return $json_response;
     }
 
-    function getInvoice ($invoice_id) {
-        $curl = curl_init();
+    function getInvoice($invoice_id='') {
+        $endPoint = $this->tpi_server_domain.'/payment/xendit/invoice/'.$invoice_id;
+        $default_header = $this->getHeader();
+        $body = [];
 
-        $headers = array();
-        $headers[] = 'Content-Type: application/json';
+        $json_response = $this->_sendRequest($endPoint, self::METHOD_GET, $body, $default_header);
 
-        $end_point = $this->tpi_server_domain.'/payment/xendit/invoice/'.$invoice_id;
-
-        $args = array(
-            'headers' => $this->getHeader()
-        );
-        $response = wp_remote_get( $end_point, $args );
-        $jsonResponse = json_decode( $response['body'], true );
-        return $jsonResponse;
+        return $json_response;
     }
 
     function getInvoiceSettings() {
@@ -97,7 +91,7 @@ class XenditApi {
 	 */
 	function _sendRequest($endpoint, $method, $body = array(), $header = array()) {
         $ch = curl_init();
-
+    
         $curl_options = array(
             CURLOPT_URL => $endpoint,
             CURLOPT_HTTPHEADER => $header,
@@ -111,8 +105,10 @@ class XenditApi {
         }
 
         curl_setopt_array($ch, $curl_options);
-
+        
+        
         $response = curl_exec($ch);
+        
         curl_close($ch);
 
         if ($response === false) {
