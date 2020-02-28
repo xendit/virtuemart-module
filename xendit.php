@@ -368,7 +368,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 					$data = file_get_contents("php://input");
 					$response = json_decode($data);
 					
-					$this->validateInvoicePayment($response);
+					$this->validatePayment($response);
 				}
 				
 			}
@@ -377,7 +377,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		die('done');
 	}
 	
-	public function validateInvoicePayment($response)
+	public function validatePayment($response)
 	{
 		$orderId = $response->external_id;
         
@@ -390,9 +390,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
             $order_number = end($explodedExtId);
 
 			$order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number);
-			$orderModel = VmModel::getModel('orders');
-			
-			$order = $orderModel->getOrder($order_id);
 			
 			if (!($payments = $this->getDatasByOrderId($order_id))) {
 				return FALSE;
@@ -400,58 +397,154 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			
 			$method = $this->getVmPluginMethod($payments[0]->virtuemart_paymentmethod_id);
 
-			$xenditInterface = new XenditApi($method);
-			
-			$invoice = $xenditInterface->getInvoice($response->id);
-			
-            if (isset($invoice['error_code'])) {
-                header('HTTP/1.1 400 Invalid Invoice Data Received');
-                exit;
+			switch ($method->xendit_gateway_payment_type) {
+				case 'BCA':
+				case 'BNI':
+				case 'BRI':
+				case 'MANDIRI':
+				case 'PERMATA':
+					return $this->validateInvoicePayment($order_number, $method, $response);
+				case 'CC':
+					return $this->validateCreditCardPayment($order_number, $method, $response);
+				default:
+					header('HTTP/1.1 400 Invalid Payment Type');
+					echo $method->xendit_gateway_payment_type;
+					exit;
 			}
-
-            if ('PAID' == $invoice['status'] || 'SETTLED' == $invoice['status']) {
-				$modelOrder = VmModel::getModel('orders');
-				$order = array();
-
-				$order['order_status'] = 'C';
-				$notes = json_encode(
-						array(
-							'invoice_id' => $invoice['id'],
-							'status' => $invoice['status'],
-							'payment_method' => $invoice['payment_method'],
-							'paid_amount' => $invoice['paid_amount'],
-						)
-					);
-					
-				$order['comments'] = vmText::_('Xendit Payment successful, Response: '. "{$notes}");
-				$order['customer_notified'] = 1;
-				
-				$modelOrder->updateStatusForOneOrder($order_id, $order, false);
-		
-                die('SUCCESS');
-            } else {
-				$order['order_status'] = 'X';
-				$notes = json_encode(
-						array(
-							'invoice_id' => $invoice['id'],
-							'status' => $invoice['status'],
-							'payment_method' => $invoice['payment_method'],
-							'paid_amount' => $invoice['paid_amount'],
-						)
-					);
-					
-				$order['comments'] = vmText::_('Xendit Payment successful, Response: '. "{$notes}");
-				$order['customer_notified'] = 1;
-
-				$modelOrder->updateStatusForOneOrder($order_id, $order, false);
-				
-                header('HTTP/1.1 400 Invalid Data Received');
-                exit;
-            }
         } else {
             header('HTTP/1.1 400 Invalid Data Received');
             exit;
         }
+	}
+
+	public function validateInvoicePayment($order_number, $method, $response)
+	{
+		$xenditInterface = new XenditApi($method);
+			
+		$invoice = $xenditInterface->getInvoice($response->id);
+		$order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number);
+		
+		if (isset($invoice['error_code'])) {
+			header('HTTP/1.1 400 Invalid Invoice Data Received');
+			exit;
+		}
+
+		if ('PAID' == $invoice['status'] || 'SETTLED' == $invoice['status']) {
+			$this->validateResponseAndOrder($invoice, $order_number);
+
+			$modelOrder = VmModel::getModel('orders');
+			$order = array();
+
+			$order['order_status'] = 'C';
+			$notes = json_encode(
+					array(
+						'invoice_id' => $invoice['id'],
+						'status' => $invoice['status'],
+						'payment_method' => $invoice['payment_method'],
+						'paid_amount' => $invoice['paid_amount'],
+					)
+				);
+				
+			$order['comments'] = vmText::_('Xendit Payment successful, Response: '. "{$notes}");
+			$order['customer_notified'] = 1;
+			
+			$modelOrder->updateStatusForOneOrder($order_id, $order, false);
+	
+			die('SUCCESS');
+		} else {
+			$order['order_status'] = 'X';
+			$notes = json_encode(
+					array(
+						'invoice_id' => $invoice['id'],
+						'status' => $invoice['status'],
+						'payment_method' => $invoice['payment_method'],
+						'paid_amount' => $invoice['paid_amount'],
+					)
+				);
+				
+			$order['comments'] = vmText::_('Xendit Payment failed, Response: '. "{$notes}");
+			$order['customer_notified'] = 1;
+
+			$modelOrder->updateStatusForOneOrder($order_id, $order, false);
+			
+			die('SUCCESS');
+		}
+	}
+
+	public function validateCreditCardPayment($order_number, $method, $response)
+	{
+		$xenditInterface = new XenditApi($method);
+			
+		$charge = $xenditInterface->getCharge($response->id);
+		$order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number);
+		
+		if (isset($charge['error_code'])) {
+			header('HTTP/1.1 400 Invalid Charge Data Received');
+			exit;
+		}
+
+		if ('CAPTURED' == $charge['status']) {
+			$this->validateResponseAndOrder($charge, $order_number);
+
+			$modelOrder = VmModel::getModel('orders');
+			$order = array();
+
+			$order['order_status'] = 'C';
+			$notes = json_encode(
+					array(
+						'charge_id' => $charge['id'],
+						'status' => $charge['status'],
+						'paid_amount' => $charge['capture_amount'],
+					)
+				);
+				
+			$order['comments'] = vmText::_('Xendit Payment successful, Response: '. "{$notes}");
+			$order['customer_notified'] = 1;
+			
+			$modelOrder->updateStatusForOneOrder($order_id, $order, false);
+	
+			die('SUCCESS');
+		} else {
+			$order['order_status'] = 'X';
+			$notes = json_encode(
+					array(
+						'charge_id' => $charge['id'],
+						'status' => $charge['status'],
+					)
+				);
+				
+			$order['comments'] = vmText::_('Xendit Payment failed, Response: '. "{$notes}");
+			$order['customer_notified'] = 1;
+
+			$modelOrder->updateStatusForOneOrder($order_id, $order, false);
+			
+			die('SUCCESS');
+		}
+	}
+
+	private function validateResponseAndOrder($response, $order_number)
+	{
+		$orderModel = VmModel::getModel('orders');
+		$order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number);
+		$order = $orderModel->getOrder($order_id);
+		var_dump($order);exit;
+		$amount = $order['details']['BT']->order_total;
+
+		$separated_external_id = explode("-", $response['external_id']);
+		$response_order_id = end($separated_external_id);
+		$response_amount = isset($response['amount']) ? $response['amount'] : $response['capture_amount'];
+
+		if ($order_number !== $response_order_id) {
+			header('HTTP/1.1 400 Bad Request');
+			echo('Order ID in Xendit does not match Order ID in VirtueMart');
+			exit;
+		}
+
+		if ((int) $amount !== (int) $response_amount) {
+			header('HTTP/1.1 400 Bad Request');
+			echo('Amount in Xendit does not match Amount in VirtueMart');
+			exit;
+		}
 	}
 
 	function storePSPluginInternalData($values, $primaryKey = 0, $preload = FALSE) {

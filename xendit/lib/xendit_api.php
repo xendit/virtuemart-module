@@ -79,6 +79,16 @@ class XenditApi {
         return $jsonResponse;
     }
 
+    function getCharge($charge_id='') {
+        $endPoint = $this->tpi_server_domain.'/payment/xendit/credit-card/'.$charge_id;
+        $default_header = $this->getHeader();
+        $body = [];
+
+        $json_response = $this->_sendRequest($endPoint, self::METHOD_GET, $body, $default_header);
+
+        return $json_response;
+    }
+
     /**
 	 * _sendRequest
 	 * Posts the request to AuthorizeNet & returns response using curl
