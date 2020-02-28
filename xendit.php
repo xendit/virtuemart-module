@@ -118,18 +118,12 @@ class plgVmpaymentXendit extends vmPSPlugin {
      */
     function checkConditions($cart, $method, $cart_prices) {
 
-		//set global variables for checkout page functions
-		$this->_currentMethod = $method;
-		$this->currencyId = $method->currency_id;
-		$this->paymentType = $method->xendit_gateway_payment_type; //print_r($method);
-
-        $xenditInterface = $this->_loadXenditInterface();
         $total_price = $cart_prices['salesPrice'] + $cart_prices['salesPriceShipment'];
 
         if ($total_price < $this->defaultMinimumAmount) {
             return FALSE;
 		}
-		if ($paymentType == 'CC' && $total_price > $this->defaultCCMaximumAmount) {
+		if ($method->xendit_gateway_payment_type == 'CC' && $total_price > $this->defaultCCMaximumAmount) {
 			return FALSE;
 		} else if ($total_price > $this->defaultMaximumAmount) {
 			return FALSE;
@@ -183,9 +177,10 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		$dbValues['virtuemart_paymentmethod_id'] = $order['details']['BT']->virtuemart_paymentmethod_id;
 		$dbValues['payment_name'] = $this->_currentMethod->payment_name;
 		$dbValues['payment_order_total'] = $order_amount;
-		$dbValues['payment_currency'] = $this->currencyId;
+		$dbValues['payment_currency'] = $this->_currentMethod->currency_id;
 
-        $address = ((isset($order['details']['ST'])) ? $order['details']['ST'] : $order['details']['BT']);
+		$address = ((isset($order['details']['ST'])) ? $order['details']['ST'] : $order['details']['BT']);
+		$paymentType = $this->_currentMethod->xendit_gateway_payment_type;
 
         $site_config = JFactory::getConfig();
         $store_name = $site_config->get('sitename');
@@ -202,7 +197,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
             'platform_callback_url' => self::getNotificationUrl($order)
         );
         $invoice_header = array(
-            'x-plugin-method: ' . $this->paymentType,
+            'x-plugin-method: ' . $paymentType,
             'x-plugin-store-name: ' . $store_name
         );
 
@@ -228,7 +223,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
             $modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
     
             $mainframe = JFactory::getApplication();
-            $mainframe->redirect($invoice_response['invoice_url'] . '#' . $this->paymentType);
+            $mainframe->redirect($invoice_response['invoice_url'] . '#' . $paymentType);
         } catch (Exception $e) {
             vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
             $this->redirectToCart();
@@ -265,7 +260,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			return FALSE;
 		}
 
-		$currencyCode = shopFunctions::getCurrencyByID($this->currencyId, 'currency_code_3');
+		$currencyCode = shopFunctions::getCurrencyByID($this->_currentMethod->currency_id, 'currency_code_3');
         if ($currencyCode !== 'IDR') {
             $text = vmText::sprintf('VMPAYMENT_XENDIT_UNSUPPORTED_CURRENCY');
             vmError($text, $text);
@@ -377,8 +372,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		die('done');
 	}
 	
-	public function validateInvoicePayment($response)
-	{
+	public function validateInvoicePayment($response) {
 		$orderId = $response->external_id;
         
         if ($orderId) {
@@ -550,7 +544,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	 *
 	 */
 	public function plgVmOnSelectCheckPayment(VirtueMartCart $cart, &$msg) {
-
+		
 		return $this->OnSelectCheck($cart);
 	}
 
@@ -564,7 +558,49 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	 */
 	public function plgVmDisplayListFEPayment(VirtueMartCart $cart, $selected = 0, &$htmlIn) {
 
-		return $this->displayListFE($cart, $selected, $htmlIn);
+		$htmla = array();
+		vmLanguage::loadJLang('com_virtuemart');
+		$currency = CurrencyDisplay::getInstance();
+		
+		$this->_currentMethod = $this->getVmPluginMethod($cart->virtuemart_paymentmethod_id);
+
+		$isCCSelected = false;
+		if ($this->_currentMethod->xendit_gateway_payment_type == 'CC') {
+			$isCCSelected = true;
+		}
+
+		foreach ($this->methods as $m) {
+			if ($this->checkConditions($cart, $m, $cart->cartPrices)) {
+				$cartPrices = $cart->cartPrices;
+				$methodSalesPrice = $this->calculateSalesPrice($cart, $m, $cartPrices);
+
+				$logo = $this->displayLogos($m->payment_logos);
+				$payment_cost = '';
+				if ($methodSalesPrice) {
+					$payment_cost = $currency->priceDisplay($methodSalesPrice);
+				}
+				if ($selected == $m->virtuemart_paymentmethod_id) {
+					$checked = 'checked="checked"';
+				} else {
+					$checked = '';
+				}
+				
+				$html = $this->renderByLayout('display_payment', array(
+				                                                       'plugin' => $m,
+				                                                       'checked' => $checked,
+				                                                       'payment_logo' => $logo,
+																	   'payment_cost' => $payment_cost,
+																	   'cc_selected' => $isCCSelected
+				                                                  ));
+
+				$htmla[] = $html;
+			}
+		}
+		if (!empty($htmla)) {
+			$htmlIn[] = $htmla;
+		}
+
+		return TRUE;
 	}
 
 	/*

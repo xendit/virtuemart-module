@@ -1,0 +1,7 @@
+.required {
+    color: red;
+}
+
+.cc-expiry, .cc-code {
+    width: 80px;
+}
