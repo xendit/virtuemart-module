@@ -31,7 +31,8 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
 		// Xendit custom parameters
         $this->defaultMinimumAmount = 10000;
-        $this->defaultMaximumAmount = 1000000000;
+		$this->defaultMaximumAmount = 1000000000;
+		$this->defaultCCMaximumAmount = 200000000;
 	}
 
 	/**
@@ -70,16 +71,14 @@ class plgVmpaymentXendit extends vmPSPlugin {
      */
 	function getTableSQLFields() {
 
-        // TODO: need to research which fields are important.
-        // From Xendit, I think we need to store invoice ID, charge ID (later), xendit_status, xendit_url?
 		$SQLfields = array(
 			'id'                          => 'int(11) UNSIGNED NOT NULL AUTO_INCREMENT',
 			'virtuemart_order_id'         => 'int(1) UNSIGNED',
-			'order_number'                => ' char(64)',
+			'order_number'                => 'char(64)',
 			'virtuemart_paymentmethod_id' => 'mediumint(1) UNSIGNED',
-			'payment_name'                => 'varchar(5000)',
-			'payment_order_total'         => 'decimal(15,5) NOT NULL DEFAULT \'0.00000\'',
-			'payment_fee'                 => 'decimal(10,2)',
+			'payment_name'                => 'varchar(255)',
+			'payment_order_total'         => 'decimal(15,4) NOT NULL DEFAULT \'0.0000\'',
+			'payment_currency'            => 'varchar(50)',
 			'xendit_status'               => 'varchar(50)',
 			'xendit_invoice_id'           => 'varchar(255)',
 			'xendit_invoice_url'          => 'varchar(255)',
@@ -119,13 +118,21 @@ class plgVmpaymentXendit extends vmPSPlugin {
      */
     function checkConditions($cart, $method, $cart_prices) {
 
-        $this->_currentMethod = $method;
+		//set global variables for checkout page functions
+		$this->_currentMethod = $method;
+		$this->currencyId = $method->currency_id;
+		$this->paymentType = $method->xendit_gateway_payment_type; //print_r($method);
 
         $xenditInterface = $this->_loadXenditInterface();
         $total_price = $cart_prices['salesPrice'] + $cart_prices['salesPriceShipment'];
 
-        if ($total_price < $this->defaultMinimumAmount || $total_price > $this->defaultMaximumAmount) {
+        if ($total_price < $this->defaultMinimumAmount) {
             return FALSE;
+		}
+		if ($paymentType == 'CC' && $total_price > $this->defaultCCMaximumAmount) {
+			return FALSE;
+		} else if ($total_price > $this->defaultMaximumAmount) {
+			return FALSE;
 		}
 
 		return TRUE;
@@ -133,8 +140,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	
     /**
      * Trigerred when end user click the "Confirm Purchase" button.
-     * 
-     * Can we redirect to invoice URL here?
      */
 	function plgVmConfirmedOrder($cart, $order) {
 
@@ -146,34 +151,39 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		}
         if (!class_exists('VirtueMartModelOrders')) {
 			require(VMPATH_ADMIN . DS . 'models' . DS . 'orders.php');
-        }
+		}
+		
 		$xenditInterface = $this->_loadXenditInterface();
 		$this->logInfo('plgVmConfirmedOrder order number: ' . $order['details']['BT']->order_number, 'message');
 
-		vmLanguage::loadJLang('com_virtuemart',true);
+		vmLanguage::loadJLang('com_virtuemart', TRUE);
 		vmLanguage::loadJLang('com_virtuemart_orders', TRUE);
 
-		$this->getPaymentCurrency($method, $order['details']['BT']->payment_currency_id);
-		$currency_code_3 = shopFunctions::getCurrencyByID($method->payment_currency, 'currency_code_3');
-		$email_currency = $this->getEmailCurrency($method);
+		$this->getPaymentCurrency($this->_currentMethod, $order['details']['BT']->payment_currency_id);
+		$email_currency = $this->getEmailCurrency($this->_currentMethod);
 
-		$totalInPaymentCurrency = vmPSPlugin::getAmountInCurrency($order['details']['BT']->order_total,$method->payment_currency);
+		$order_number = $order['details']['BT']->order_number;
 
-		if (!empty($method->payment_info)) {
-			$lang = JFactory::getLanguage ();
-			if ($lang->hasKey ($method->payment_info)) {
-				$method->payment_info = vmText::_ ($method->payment_info);
-			}
+		$totalInPaymentCurrency = vmPSPlugin::getAmountInCurrency($order['details']['BT']->order_total, $this->_currentMethod->payment_currency);
+		/**
+		 * AMOUNT VALIDATION
+		 * $totalInPaymentCurrency returns an array of 'value & 'display'
+		 * 'value' is unformatted & may contain decimals as a result of currency conversion, tax, etc
+		 * We'll reject if 'value' is not an integer
+		 */
+		$order_amount = $totalInPaymentCurrency['value'];
+		if ((int)$order_amount != $totalInPaymentCurrency['value']) {
+            vmError(vmText::sprintf('VMPAYMENT_XENDIT_INVALID_AMOUNT'));
+			$this->redirectToCart();
+            return;
 		}
-
-        $order_number = $order['details']['BT']->order_number;
-        $order_amount = $totalInPaymentCurrency['value'];
 
         $dbValues['virtuemart_order_id'] = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number);
 		$dbValues['order_number'] = $order_number;
 		$dbValues['virtuemart_paymentmethod_id'] = $order['details']['BT']->virtuemart_paymentmethod_id;
-		$dbValues['payment_name'] = $this->renderPluginName ($method) . '<br />' . $method->payment_info;
-        $dbValues['payment_order_total'] = $totalInPaymentCurrency['value'];
+		$dbValues['payment_name'] = $this->_currentMethod->payment_name;
+		$dbValues['payment_order_total'] = $order_amount;
+		$dbValues['payment_currency'] = $this->currencyId;
 
         $address = ((isset($order['details']['ST'])) ? $order['details']['ST'] : $order['details']['BT']);
 
@@ -183,7 +193,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
         $invoice_data = array(
             'external_id' => "virtuemart-xendit-$ext_id_store_name-$order_number",
-            'amount' => $order_amount,
+            'amount' => (int)$order_amount,
             'payer_email' => !empty($address->email) ? $address->email : 'virtuemartNoReply@xendit.co',
             'description' => "Payment for Order #{$order_number} at $store_name",
             'client_type' => 'INTEGRATION',
@@ -192,7 +202,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
             'platform_callback_url' => self::getNotificationUrl($order)
         );
         $invoice_header = array(
-            'x-plugin-method: BRI',
+            'x-plugin-method: ' . $this->paymentType,
             'x-plugin-store-name: ' . $store_name
         );
 
@@ -211,18 +221,14 @@ class plgVmpaymentXendit extends vmPSPlugin {
             $dbValues['xendit_status'] = $invoice_response['status'];
             $this->storePSPluginInternalData ($dbValues);
     
-            $currency = CurrencyDisplay::getInstance ('', $order['details']['BT']->virtuemart_vendor_id);
-    
             $modelOrder = VmModel::getModel ('orders');
-            $order['order_status'] = $this->getNewStatus ($method);
+            $order['order_status'] = $this->getNewStatus ($this->_currentMethod);
             $order['customer_notified'] = 1;
             $order['comments'] = 'Checkout using Xendit';
             $modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
-
-            $cart->emptyCart();
     
             $mainframe = JFactory::getApplication();
-            $mainframe->redirect($invoice_response['invoice_url'] . '#bni');
+            $mainframe->redirect($invoice_response['invoice_url'] . '#' . $this->paymentType);
         } catch (Exception $e) {
             vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
             $this->redirectToCart();
@@ -248,6 +254,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
     /**
      * Check if we support the payment currency used by this order.
+	 * Call on checkout page load if Xendit PG is default option.
      */
 	function plgVmgetPaymentCurrency($virtuemart_paymentmethod_id, &$paymentCurrencyId) {
 
@@ -258,14 +265,13 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			return FALSE;
 		}
 
-		// $currencyCode = shopFunctions::getCurrencyByID($paymentCurrencyId, 'currency_code_3');
-        // if ($currencyCode !== 'IDR') {
-        //     $text = vmText::sprintf('VMPAYMENT_XENDIT_UNSUPPORTED_CURRENCY');
-        //     vmError($text, $text);
-        //     vmError('Currency code: ' . $paymentCurrencyId);
+		$currencyCode = shopFunctions::getCurrencyByID($this->currencyId, 'currency_code_3');
+        if ($currencyCode !== 'IDR') {
+            $text = vmText::sprintf('VMPAYMENT_XENDIT_UNSUPPORTED_CURRENCY');
+            vmError($text, $text);
             
-		// 	return FALSE;
-        // }
+			return FALSE;
+        }
 
 		return TRUE;
 	}
@@ -330,6 +336,10 @@ class plgVmpaymentXendit extends vmPSPlugin {
             'displayTotalInPaymentCurrency' => $totalInPaymentCurrency['display']
         ));
 		vRequest::setVar ('html', $html);
+
+		$cart = VirtueMartCart::getCart();
+		$cart->emptyCart();
+
 		return TRUE;
 	}
 
@@ -444,52 +454,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
         }
 	}
 
-	/**
-	 * @param $xendit_data
-	 * @return bool
-	 */
-	function paymentNotification ($xendit_data) {
-
-		if (!$this->isXenditResponseValid( $xendit_data, true, false)) {
-			return FALSE;
-		}
-		$order_number = $this->getOrderNumber($xendit_data['R']);
-		if (empty($order_number)) {
-			$this->plugin->debugLog($order_number, 'getOrderNumber not correct' . $xendit_data['R'], 'debug', false);
-			return FALSE;
-		}
-		if (!($virtuemart_order_id = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number))) {
-			return FALSE;
-		}
-
-		if (!($payments = $this->plugin->getPluginDatasByOrderId($virtuemart_order_id))) {
-			$this->plugin->debugLog('no payments found', 'getDatasByOrderId', 'debug', false);
-			return FALSE;
-		}
-
-		$orderModel = VmModel::getModel('orders');
-		$order = $orderModel->getOrder($virtuemart_order_id);
-		$extra_comment = "";
-		if (count($payments) == 1) {
-			// NOTIFY not received
-			$order_history = $this->updateOrderStatus($xendit_data, $order, $payments);
-			if (isset($order_history['extra_comment'])) {
-				$extra_comment = $order_history['extra_comment'];
-			}
-		}
-
-		return $payments[0]->paybox_custom;
-	}
-
-	/**
-	 * @param $firstPayment
-	 */
-	function setEmptyCartDone($firstPayment) {
-		$firstPayment = (array)$firstPayment;
-		$firstPayment['xendit_custom'] = NULL;
-		$this->storePSPluginInternalData($firstPayment, $this->_tablepkey, true);
-	}
-
 	function storePSPluginInternalData($values, $primaryKey = 0, $preload = FALSE) {
 		parent::storePSPluginInternalData($values, $primaryKey, $preload);
 	}
@@ -518,12 +482,50 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		if (!($this->_currentMethod = $this->getVmPluginMethod($virtuemart_paymentmethod_id))) {
 			return NULL; // Another method was selected, do nothing
 		}
+		if (!($payments = $this->getXenditInternalData($virtuemart_order_id))) {
+			// JError::raiseWarning(500, $db->getErrorMsg());
+			return '';
+		}
+		$payment = $payments[0];
+		
+		$html = '<table class="adminlist table" >' . "\n";
+		$html .= $this->getHtmlHeaderBE();
+		$html .= $this->getHtmlRowBE('Date', $payment->created_on);
+		$html .= $this->getHtmlRowBE('Payment Name', $payment->payment_name);
+		$html .= $this->getHtmlRowBE('Total', number_format($payment->payment_order_total) . " " . shopFunctions::getCurrencyByID($payment->payment_currency, 'currency_code_3'));
+		
+		if ($payment->xendit_invoice_id) {
+			$html .= $this->getHtmlRowBE('Xendit Invoice ID', '<a href="'.$payment->xendit_invoice_url.'" target="blank">' . $payment->xendit_invoice_id . '</a>');
+		}
+		if ($payment->xendit_charge_id) {
+			$html .= $this->getHtmlRowBE('Xendit Charge ID', $payment->xendit_charge_id);
+		}
 
-		$xenditInterface = $this->_loadXenditInterface();
-		$html = $xenditInterface->showOrderBEPayment($virtuemart_order_id);
-
+		$html .= '</table>' . "\n";
 
 		return $html;
+	}
+
+	/**
+	 * @param int $virtuemart_order_id
+	 * @param string $order_number
+	 * @return mixed|string
+	 */
+	private function getXenditInternalData($virtuemart_order_id, $order_number = '') {
+		if (empty($order_number)) {
+			$orderModel = VmModel::getModel('orders');
+			$order_number = $orderModel->getOrderNumber($virtuemart_order_id);
+		}
+		$db = JFactory::getDBO();
+		$q = 'SELECT * FROM `' . $this->_tablename . '` WHERE ';
+		$q .= " `order_number` = '" . $order_number . "'";
+
+		$db->setQuery($q);
+		if (!($payments = $db->loadObjectList())) {
+			// JError::raiseWarning(500, $db->getErrorMsg());
+			return '';
+		}
+		return $payments;
 	}
 
 	function getCosts(VirtueMartCart $cart, $method, $cart_prices) {
@@ -544,7 +546,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	 * @author Valérie isaksen
 	 *
 	 * @param VirtueMartCart $cart: the actual cart
-	 * @return null if the payment was not selected, true if the data is valid, error message if the data is not vlaid
+	 * @return null if the payment was not selected, true if the data is valid, error message if the data is not valid
 	 *
 	 */
 	public function plgVmOnSelectCheckPayment(VirtueMartCart $cart, &$msg) {
@@ -786,5 +788,4 @@ class plgVmpaymentXendit extends vmPSPlugin {
             );
         }
     }
-    
 }

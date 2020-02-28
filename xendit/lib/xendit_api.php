@@ -9,7 +9,6 @@ class XenditApi {
     function __construct ($method) {
         $this->server_domain = 'https://api.xendit.co';
         $this->tpi_server_domain = 'https://tpi.xendit.co';
-        //print_r($method);echo "<br><br>";
 
         $this->environment = $method->shop_mode ? $method->shop_mode : 'test';
 
@@ -24,7 +23,7 @@ class XenditApi {
 
         $this->secret_api_key = $this->environment=='test' ? $method->xendit_gateway_secret_api_key_test : $method->xendit_gateway_secret_api_key;
         $this->public_api_key = $this->environment!='test' ? $method->xendit_gateway_public_api_key_test : $method->xendit_gateway_public_api_key;
-
+        $this->payment_type = $method->xendit_gateway_payment_type;
     }
 
     function getHeader() {
