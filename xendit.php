@@ -349,8 +349,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	 * Return:
 	 * @link: index.php?option=com_virtuemart&view=pluginresponse&task=pluginnotification&tmpl=component&xendit_mode=[xendit_mode]
 	 * xendit_mode:
-	 * 		- xendit_invoice_callback
-	 * 		- xendit_cc_callback (not support yet)
+	 * 		- xendit_callback -> support all payment method
 	 * 
 	 * @author Xendit
 	 * 
@@ -377,6 +376,14 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		die('done');
 	}
 	
+	/**
+	 * Validate payment.
+	 * - Getting the order number from POST's external_id
+	 * - Retrieve the order's method
+	 * - Route the validation based on payment type
+	 * 
+	 * @param array $response
+	 */
 	public function validatePayment($response)
 	{
 		$orderId = $response->external_id;
@@ -408,15 +415,25 @@ class plgVmpaymentXendit extends vmPSPlugin {
 					return $this->validateCreditCardPayment($order_number, $method, $response);
 				default:
 					header('HTTP/1.1 400 Invalid Payment Type');
-					echo $method->xendit_gateway_payment_type;
+					echo 'Unmapped Xendit payment type: ' . $method->xendit_gateway_payment_type;
 					exit;
 			}
         } else {
-            header('HTTP/1.1 400 Invalid Data Received');
+			header('HTTP/1.1 400 Invalid Data Received');
+			echo 'Data does not include external_id';
             exit;
         }
 	}
 
+	/**
+	 * Validate invoice payment.
+	 * - Retrieve invoice information from Xendit
+	 * - Change status based on invoice status
+	 * 
+	 * @param string $order_number
+	 * @param array $method
+	 * @param array $response
+	 */
 	public function validateInvoicePayment($order_number, $method, $response)
 	{
 		$xenditInterface = new XenditApi($method);
@@ -472,6 +489,15 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		}
 	}
 
+	/**
+	 * Validate CC payment.
+	 * - Retrieve credit card charge information from Xendit
+	 * - Change status based on charge status
+	 * 
+	 * @param string $order_number
+	 * @param array $method
+	 * @param array $response
+	 */
 	public function validateCreditCardPayment($order_number, $method, $response)
 	{
 		$xenditInterface = new XenditApi($method);
@@ -524,6 +550,14 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		}
 	}
 
+	/**
+	 * Validate Xendit data with order.
+	 * - Compare order ID
+	 * - Compare amount
+	 * 
+	 * @param array $response
+	 * @param string $order_number
+	 */
 	private function validateResponseAndOrder($response, $order_number)
 	{
 		$orderModel = VmModel::getModel('orders');
