@@ -26,7 +26,6 @@ class XenditApi {
 
         $this->secret_api_key = $this->environment=='test' ? $method->xendit_gateway_secret_api_key_test : $method->xendit_gateway_secret_api_key;
         $this->public_api_key = $this->environment=='test' ? $method->xendit_gateway_public_api_key_test : $method->xendit_gateway_public_api_key;
-        
     }
 
     function getHeader() {
