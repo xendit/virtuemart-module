@@ -42,6 +42,9 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 			   pattern="\d*" maxlength="4" placeholder="CVC">
 	</div>
 
+	<!-- new line for next payment method -->
+	<br clear="all" />
+
 	<!-- Hidden inputs -->
 	<input type='hidden' id='year' name='year' value=''>
 	<input type='hidden' id='month' name='month' value=''>
