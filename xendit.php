@@ -242,9 +242,9 @@ class plgVmpaymentXendit extends vmPSPlugin {
 				$this->storePSPluginInternalData ($dbValues);
 		
 				$modelOrder = VmModel::getModel ('orders');
-				$order['order_status'] = $this->getNewStatus ($this->_currentMethod);
+				$order['order_status'] = 'U';
 				$order['customer_notified'] = 1;
-				$order['comments'] = 'Checkout using Xendit';
+				$order['comments'] = 'Checkout using Xendit. Selected method: ' . $paymentType;
 				$modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
 		
 				$mainframe = JFactory::getApplication();
@@ -257,6 +257,22 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		}
 	}
 
+	/**
+	 * Process credit card payment with 3DS recommendation. Flow:
+	 * - Create token
+	 * - Get 3DS recommendation for token
+	 * - If 3DS recommendation is to do 3DS:
+	 *   - Create hosted 3DS
+	 *   - Redirect to 3DS page
+	 * - Otherwise:
+	 *   - Create charge
+	 *   - Redirect to order confirmed
+	 * 
+	 * @param array $dbValues
+	 * @param array $order
+	 * @param array $card
+	 * @param boolean $should3DS
+	 */
 	private function processCCPaymentWith3DSRecommendation($dbValues, $order, $card, $should3DS)
 	{
 		if ($should3DS === true) {
@@ -266,6 +282,16 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		}
 	}
 
+	/**
+	 * Process credit card payment with 3DS recommendation. Flow:
+	 * - Create token
+	 * - Create charge
+	 * - Redirect to order confirmed
+	 * 
+	 * @param array $dbValues
+	 * @param array $order
+	 * @param array $card
+	 */
 	private function processCCPaymentWithout3DS($dbValues, $order, $card)
 	{
 		$xenditInterface = $this->_loadXenditInterface();
@@ -327,7 +353,17 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			return;
 		}
 	}
-	
+
+	/**
+	 * Process credit card payment with 3DS recommendation. Flow:
+	 * - Create token
+	 * - Create hosted 3DS
+	 * - Redirect to 3DS page
+	 * 
+	 * @param array $dbValues
+	 * @param array $order
+	 * @param array $card
+	 */
 	private function processCCPaymentWith3DS($dbValues, $order, $card)
 	{
 		$xenditInterface = $this->_loadXenditInterface();
@@ -358,7 +394,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			$this->storePSPluginInternalData ($dbValues);
 			
 			$modelOrder = VmModel::getModel ('orders');
-			$order['order_status'] = $this->getNewStatus ($this->_currentMethod);
+			$order['order_status'] = 'U';
 			$order['customer_notified'] = 1;
 			$order['comments'] = 'Checkout using Xendit';
 			$modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
@@ -372,6 +408,12 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		}
 	}
 
+	/**
+	 * Generate external ID for Xendit transactions
+	 * 
+	 * @param string $order_number
+	 * @return string
+	 */
 	private function generateExternalId($order_number)
 	{
         $site_config = JFactory::getConfig();
@@ -387,14 +429,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
     function redirectToCart ($msg = NULL) {
 		$app = JFactory::getApplication();
 		$app->redirect(self::getCancelUrl(), $msg);
-	}
-
-	/**
-     * Keep backwards compatibility
-     * a new parameter has been added in the xml file
-     */
-	function getNewStatus ($method) {
-        return 'U';
 	}
 
     /**

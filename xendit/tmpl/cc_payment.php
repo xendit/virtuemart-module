@@ -91,7 +91,7 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 						"card_exp_year" 	: String(cardExpiry.year),
 						"card_cvn"      	: cardCode,
 						"is_multiple_use"	: true
-					}; console.log(data);
+					};
 
 					Xendit.setPublishableKey('<?php echo $viewData['public_key']; ?>');
 
@@ -100,7 +100,6 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 					$('#card_cvn').val(data.card_cvn);
 					
 					Xendit.card.createToken(data, function(tokenErr, tokenResponse) { // on tokenization response
-						console.log('createToken', tokenErr, tokenResponse);
 						if (tokenErr) { // how to display VM error style in here?
 							alert(tokenErr.error_code + ": " + tokenErr.message);
 
@@ -120,7 +119,6 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 						var can_use_dynamic_3ds = '<?php echo $viewData['cc_settings']['can_use_dynamic_3ds']; ?>';
 						if (can_use_dynamic_3ds === "1") {
 							Xendit.card.threeDSRecommendation(tokenData, function(threeDSErr, threeDSResponse) {
-								console.log('threeDSRecommendation', threeDSErr, threeDSResponse);
 								flag = true;
 								
 								if (threeDSErr) {
