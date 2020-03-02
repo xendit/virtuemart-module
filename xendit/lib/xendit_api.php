@@ -88,6 +88,15 @@ class XenditApi {
         Credit Card
      *******************************************************************************/
 
+    function createHosted3DS($body) {
+        $endpoint = $this->tpi_server_domain.'/payment/xendit/credit-card/hosted-3ds';
+        $default_header = $this->getHeader();
+
+        $json_response = $this->_sendRequest($endpoint, self::METHOD_GET, $body, $default_header);
+
+        return $json_response;
+    }
+
     /**
      * Get CC Setting
      * Note: the return will be array, but if value is boolean (true) json_decode will convert to "1" otherwise if value is boolean (false) json_decode will convert to ""

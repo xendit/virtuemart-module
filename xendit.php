@@ -190,7 +190,22 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		// Differentiate between VA & CC payment methods
 		if ($paymentType == 'CC') {
 			// TODO: handle CC payment
-			
+			$cc_settings = $xenditInterface->getCCSettings();
+
+			// need to get token and should 3ds from frontend here
+			$token = 'sample_token';
+			$should_3ds = true;
+
+			if (empty($cc_settings["should_authenticate"])) {
+                return $this->processCCPaymentWithout3DS($order, $token);
+            } else {
+                if (!empty($cc_settings["can_use_dynamic_3ds"])) {
+                    return $this->processCCPaymentWith3DSRecommendation($order, $token, $should_3ds);
+                } else {
+                    return $this->processCCPaymentWith3DS($order, $token);
+                }
+			}
+
 			return;
 		}
 		else {
