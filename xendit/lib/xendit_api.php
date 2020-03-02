@@ -94,7 +94,16 @@ class XenditApi {
         Credit Card
      *******************************************************************************/
 
-    function createHosted3DS($body, $header) {
+    function createCharge($body) {
+        $endpoint = $this->tpi_server_domain.'/payment/xendit/credit-card/charges';
+        $default_header = $this->getHeader();
+
+        $json_response = $this->_sendRequest($endpoint, self::METHOD_POST, $body, $default_header);
+
+        return $json_response;
+    }
+    
+     function createHosted3DS($body, $header) {
         $endpoint = $this->tpi_server_domain.'/payment/xendit/credit-card/hosted-3ds';
         $default_header = $this->getHeader();
         $header = array_merge($header, $default_header);

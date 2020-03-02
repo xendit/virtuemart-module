@@ -193,19 +193,22 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			$cc_settings = $xenditInterface->getCCSettings();
 
 			// need to get token and should 3ds from frontend here
-			$token = vRequest::getString('xendit_token');
+			$card = array(
+				'token' => vRequest::getString('xendit_token'),
+				'cvn' => vRequest::getString('card_cvn')
+			);
 			$should_3ds = vRequest::getString('xendit_should_3ds');
 
 			if (empty($cc_settings["should_authenticate"])) {
-                return $this->processCCPaymentWithout3DS($dbValues, $order, $token);
+				// vmInfo('Masuk sini niih harusnya');
+				// $this->redirectToCart();
+				// return;
+                return $this->processCCPaymentWithout3DS($dbValues, $order, $card);
             } else {
                 if (!empty($cc_settings["can_use_dynamic_3ds"])) {
-                    return $this->processCCPaymentWith3DSRecommendation($dbValues, $order, $token, $should_3ds);
+                    return $this->processCCPaymentWith3DSRecommendation($dbValues, $order, $card, $should_3ds);
                 } else {
-					// vmInfo('Masuk sini niih harusnya');
-					// $this->redirectToCart();
-					// return;
-                    return $this->processCCPaymentWith3DS($dbValues, $order, $token);
+                    return $this->processCCPaymentWith3DS($dbValues, $order, $card);
                 }
 			}
 
@@ -256,13 +259,75 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			}
 		}
 	}
+
+	private function processCCPaymentWithout3DS($dbValues, $order, $card)
+	{
+		$xenditInterface = $this->_loadXenditInterface();
+
+		$charge_data = array(
+			'token_id' => $card['token'],
+			'external_id' => $this->generateExternalId($dbValues['order_number']),
+			'amount' => $dbValues['payment_order_total'],
+			'card_cvn' => $card['cvn']
+		);
+
+		try {
+			$charge = $xenditInterface->createCharge($charge_data);
+
+			if (isset($charge['error_code'])) {
+				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $charge['error_code'], $charge['message']));
+				$this->redirectToCart();
+				return;
+			}
 	
-	private function processCCPaymentWith3DS($dbValues, $order, $token)
+			$dbValues['xendit_charge_id'] = $charge['id'];
+			$dbValues['xendit_status'] = $charge['status'];
+			$this->storePSPluginInternalData ($dbValues);
+
+			if ($charge['status'] !== 'CAPTURED') {
+				$failure_reason = self::getXenditFailureMessage_reason($charge['failure_reason']);
+				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $failure_reason['title'], $failure_reason['message']));
+				$this->redirectToCart();
+				return;
+			}
+			
+			$modelOrder = VmModel::getModel ('orders');
+			$order['order_status'] = 'C';
+			$order['customer_notified'] = 1;
+			$order['comments'] = 'Checkout using Xendit successful. Charge ID: ' . $charge['id'];
+			$modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
+	
+			// Display order received page
+			$payments = $this->getDatasByOrderId($virtuemart_order_id);
+			$payment = end($patments);
+
+			$totalInPaymentCurrency = vmPSPlugin::getAmountInCurrency($order['details']['BT']->order_total,$order['details']['BT']->order_currency);
+			$pluginName = $this->renderPluginName($method, $where = 'post_payment');
+			$html = $this->renderByLayout('post_payment', array(
+				'order' => $order,
+				'paymentInfos' => $payment,
+				'pluginName' => $pluginName,
+				'displayTotalInPaymentCurrency' => $totalInPaymentCurrency['display']
+			));
+			vRequest::setVar ('html', $html);
+			
+			$cart = VirtueMartCart::getCart();
+			$cart->emptyCart();
+
+			return TRUE;
+		} catch (Exception $e) {
+			vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
+			$this->redirectToCart();
+			return;
+		}
+	}
+	
+	private function processCCPaymentWith3DS($dbValues, $order, $card)
 	{
 		$xenditInterface = $this->_loadXenditInterface();
 
 		$hosted3ds_data = array(
-			'token_id' => $token,
+			'token_id' => $card['token'],
 			'external_id' => $this->generateExternalId($dbValues['order_number']),
 			'amount' => $dbValues['payment_order_total'],
 			'platform_callback_url' => self::getNotificationUrl($order),
@@ -275,10 +340,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
 		try {
 			$hosted3ds = $xenditInterface->createHosted3DS($hosted3ds_data, $hosted3ds_header);
-
-			// vmInfo('apa nii ' . print_r($hosted3ds, true));
-			// $this->redirectToCart();
-			// return;
 
 			if (isset($hosted3ds['error_code'])) {
 				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $hosted3ds['error_code'], $hosted3ds['message']));
@@ -1059,12 +1120,63 @@ class plgVmpaymentXendit extends vmPSPlugin {
                 return array(
                     'title' => 'Invalid API Key',
                     'message' => 'Your merchant using wrong Xendit credential, please inform your merchant so your merchant can change it to the correct one'
-                );
+				);
             default:
             return array(
                 'title' => $response['error_code'],
                 'message' => $response['message']
             );
+        }
+	}
+
+	/**
+     * Map Xendit failure message. Return failure title and message.
+     * @param string $failure_reason
+     * @return array
+     */
+	static function getXenditFailureMessage ($failure_reason) {
+        switch ($failure_reason) {
+			case 'CARD_DECLINED':
+			case 'STOLEN_CARD':
+				return array(
+					'title' => 'CARD_DECLINED',
+					'message' => 'The bank that issued this card declined the payment but didn\'t tell us why. Try another card, or try calling your bank to ask why the card was declined.'
+				);
+			case 'INSUFFICIENT_BALANCE':
+				return array(
+					'title' => $failure_reason,
+					'message' => 'Your bank declined this payment due to insufficient balance. Ensure that sufficient balance is available, or try another card'
+				);
+			case 'INVALID_CVN':
+				return array(
+					'title' => $failure_reason,
+					'message' => 'Your bank declined the payment due to incorrect card details entered. Try to enter your card details again, including expiration date and CVV'
+				);
+			case 'INACTIVE_CARD':
+				return array(
+					'title' => $failure_reason,
+					'message' => 'This card number does not seem to be enabled for eCommerce payments. Try another card that is enabled for eCommerce, or ask your bank to enable eCommerce payments for your card.'
+				);
+			case 'EXPIRED_CARD':
+				return array(
+					'title' => $failure_reason,
+					'message' => 'Your bank declined the payment due to the card being expired. Please try another card that has not expired.'
+				);
+			case 'PROCESSOR_ERROR':
+				return array(
+					'title' => $failure_reason,
+					'message' => 'We encountered issue in processing your card. Please try again with another card.'
+				);
+			case 'AUTHENTICATION_FAILED':
+				return array(
+					'title' => $failure_reason,
+					'message' => 'Authentication process failed. Please try again'
+				);
+            default:
+				return array(
+					'title' => $failure_reason,
+					'message' => 'Failed to process transaction.'
+				);
         }
 	}
 }
