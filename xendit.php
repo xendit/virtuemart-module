@@ -30,7 +30,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		$this->setConfigParameterable ($this->_configTableFieldName, $varsToPush);
 
 		// Xendit custom parameters
-        $this->defaultMinimumAmount = 10000;
+        $this->defaultMinimumAmount = 5000;
 		$this->defaultMaximumAmount = 1000000000;
 		$this->defaultCCMaximumAmount = 200000000;
 	}
@@ -275,7 +275,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	 */
 	private function processCCPaymentWith3DSRecommendation($dbValues, $order, $card, $should3DS)
 	{
-		if ($should3DS === true) {
+		if ($should3DS === 'true') {
 			return $this->processCCPaymentWith3DS($dbValues, $order, $card);
 		} else {
 			return $this->processCCPaymentWithout3DS($dbValues, $order, $card);
@@ -317,7 +317,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			$this->storePSPluginInternalData ($dbValues);
 
 			if ($charge['status'] !== 'CAPTURED') {
-				$failure_reason = self::getXenditFailureMessage_reason($charge['failure_reason']);
+				$failure_reason = self::getXenditFailureMessage($charge['failure_reason']);
 				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $failure_reason['title'], $failure_reason['message']));
 				$this->redirectToCart();
 				return;
@@ -880,6 +880,13 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		$isCCSelected = false;
 		if ($this->_currentMethod->xendit_gateway_payment_type == 'CC') {
 			$isCCSelected = true;
+		}
+
+		$chargeError = vRequest::getString('error', 0);
+
+		if (strlen($chargeError) > 1) {
+			$failureReason = self::getXenditFailureMessage($chargeError);
+			vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $failureReason['title'], $failureReason['message']));
 		}
 
 		foreach ($this->methods as $method) {

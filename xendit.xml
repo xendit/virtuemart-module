@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <extension version="2.5" type="plugin" group="vmpayment" method="upgrade">
-    <name>VM Payment - Xendit</name>
+    <name>VM Payment - Xendit Payment</name>
     <creationDate>February 25 2020</creationDate>
     <author>Xendit</author>
     <authorUrl>https://xendit.co</authorUrl>
     <copyright>Copyright (C) 2020 Xendit. All rights reserved.</copyright>
     <license>http://www.gnu.org/licenses/gpl-2.0.html GNU/GPL</license>
-    <version>0.0.1</version>
+    <version>1.0.0</version>
     <description><![CDATA[<a href="http://xendit.co" target="_blank">Xendit</a> ]]>
     </description>
     <languages folder="language">
