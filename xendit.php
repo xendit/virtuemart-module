@@ -898,9 +898,13 @@ class plgVmpaymentXendit extends vmPSPlugin {
 					$checked = '';
 				}
 
-				$publicKey = '';
-				if ($method->xendit_gateway_payment_type) { // identified as xendit payment
-					$this->_currentMethod = $method;
+				if (!$method->xendit_gateway_payment_type) { // identified as non xendit payment
+					continue;
+				}
+				
+				$this->_currentMethod = $method;
+
+				if ($method->xendit_gateway_payment_type == 'CC') {
 					$xenditInterface = $this->_loadXenditInterface();
 					$publicKey = $xenditInterface->getPublicKey();
 
@@ -914,9 +918,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 							vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
 						}
 					}
-				}
-				
-				if ($method->xendit_gateway_payment_type == 'CC') {
+
 					$html = $this->renderByLayout('cc_payment', 
 					array(
 						'plugin' => $method,
