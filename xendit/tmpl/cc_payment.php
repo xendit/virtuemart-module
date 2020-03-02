@@ -57,7 +57,7 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 		$('#xendit-cc-form .cc-expiry').payment('formatCardExpiry');
 		$('#xendit-cc-form .cc-code').payment('formatCardCVC');
 
-		// hide or show custom cc form
+		// Hide or show custom cc form
 		$('.xendit-pg-input').change(function() {
 			var paymentType = $("input[name=virtuemart_paymentmethod_id]:checked").attr('xendit-payment-type');
 			if (paymentType == 'CC') {
@@ -68,7 +68,7 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 			}
 		});
 
-		// card validation on submit
+		// Card validation on submit
 		var flag = false;
 
 		$('#checkoutForm').submit(function(event) {
@@ -118,6 +118,8 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 						if (can_use_dynamic_3ds === "1") {
 							Xendit.card.threeDSRecommendation(tokenData, function(threeDSErr, threeDSResponse) {
 								console.log('threeDSRecommendation', threeDSErr, threeDSResponse);
+								flag = true;
+								
 								if (threeDSErr) {
 									xendit_form.submit();
 									return;
