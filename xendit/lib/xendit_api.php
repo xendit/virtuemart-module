@@ -68,28 +68,6 @@ class XenditApi {
         return $json_response;
     }
 
-    /* -Unused-
-    function getInvoiceSettings() {
-        $curl = curl_init();
-
-        $headers = array();
-        $headers[] = 'Content-Type: application/json';
-
-        $end_point = $this->tpi_server_domain.'/payment/xendit/settings/invoice';
-
-        $args = array(
-            'headers' => $this->getHeader()
-        );
-        $response = wp_remote_get( $end_point, $args );
-
-        if (empty($response['body'])) {
-            return array();
-        }
-
-        $jsonResponse = json_decode( $response['body'], true );
-        return $jsonResponse;
-    }*/
-
     /*******************************************************************************
         Credit Card
      *******************************************************************************/
