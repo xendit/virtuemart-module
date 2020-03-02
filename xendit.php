@@ -118,18 +118,12 @@ class plgVmpaymentXendit extends vmPSPlugin {
      */
     function checkConditions($cart, $method, $cart_prices) {
 
-		//set global variables for checkout page functions
-		$this->_currentMethod = $method;
-		$this->currencyId = $method->currency_id;
-		$this->paymentType = $method->xendit_gateway_payment_type; //print_r($method);
-
-        $xenditInterface = $this->_loadXenditInterface();
         $total_price = $cart_prices['salesPrice'] + $cart_prices['salesPriceShipment'];
 
         if ($total_price < $this->defaultMinimumAmount) {
             return FALSE;
 		}
-		if ($paymentType == 'CC' && $total_price > $this->defaultCCMaximumAmount) {
+		if ($method->xendit_gateway_payment_type == 'CC' && $total_price > $this->defaultCCMaximumAmount) {
 			return FALSE;
 		} else if ($total_price > $this->defaultMaximumAmount) {
 			return FALSE;
@@ -183,57 +177,67 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		$dbValues['virtuemart_paymentmethod_id'] = $order['details']['BT']->virtuemart_paymentmethod_id;
 		$dbValues['payment_name'] = $this->_currentMethod->payment_name;
 		$dbValues['payment_order_total'] = $order_amount;
-		$dbValues['payment_currency'] = $this->currencyId;
+		$dbValues['payment_currency'] = $this->_currentMethod->currency_id;
 
-        $address = ((isset($order['details']['ST'])) ? $order['details']['ST'] : $order['details']['BT']);
+		$address = ((isset($order['details']['ST'])) ? $order['details']['ST'] : $order['details']['BT']);
 
         $site_config = JFactory::getConfig();
         $store_name = $site_config->get('sitename');
-        $ext_id_store_name = substr(preg_replace("/[^a-z0-9]/mi", "", $store_name), 0, 20);
+		$ext_id_store_name = substr(preg_replace("/[^a-z0-9]/mi", "", $store_name), 0, 20);
+		
+		$paymentType = $this->_currentMethod->xendit_gateway_payment_type;
 
-        $invoice_data = array(
-            'external_id' => "virtuemart-xendit-$ext_id_store_name-$order_number",
-            'amount' => (int)$order_amount,
-            'payer_email' => !empty($address->email) ? $address->email : 'virtuemartNoReply@xendit.co',
-            'description' => "Payment for Order #{$order_number} at $store_name",
-            'client_type' => 'INTEGRATION',
-            'success_redirect_url' => self::getSuccessUrl($order),
-            'failure_redirect_url' => self::getCancelUrl($order),
-            'platform_callback_url' => self::getNotificationUrl($order)
-        );
-        $invoice_header = array(
-            'x-plugin-method: ' . $this->paymentType,
-            'x-plugin-store-name: ' . $store_name
-        );
+		// Differentiate between VA & CC payment methods
+		if ($paymentType == 'CC') {
+			// TODO: handle CC payment
+			
+			return;
+		}
+		else {
+			$invoice_data = array(
+				'external_id' => "virtuemart-xendit-$ext_id_store_name-$order_number",
+				'amount' => (int)$order_amount,
+				'payer_email' => !empty($address->email) ? $address->email : 'virtuemartNoReply@xendit.co',
+				'description' => "Payment for Order #{$order_number} at $store_name",
+				'client_type' => 'INTEGRATION',
+				'success_redirect_url' => self::getSuccessUrl($order),
+				'failure_redirect_url' => self::getCancelUrl($order),
+				'platform_callback_url' => self::getNotificationUrl($order)
+			);
+			$invoice_header = array(
+				'x-plugin-method: ' . $paymentType,
+				'x-plugin-store-name: ' . $store_name
+			);
 
-        try {
-            $invoice_response = $xenditInterface->createInvoice($invoice_data, $invoice_header);
-
-            if (isset($invoice_response['error_code'])) {
-                $xendit_error = $this->getXenditErrorMessage($invoice_response);
-                vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $xendit_error['title'], $xendit_error['message']));
-                $this->redirectToCart();
-                return;
-            }
-    
-            $dbValues['xendit_invoice_id'] = $invoice_response['id'];
-            $dbValues['xendit_invoice_url'] = $invoice_response['invoice_url'];
-            $dbValues['xendit_status'] = $invoice_response['status'];
-            $this->storePSPluginInternalData ($dbValues);
-    
-            $modelOrder = VmModel::getModel ('orders');
-            $order['order_status'] = $this->getNewStatus ($this->_currentMethod);
-            $order['customer_notified'] = 1;
-            $order['comments'] = 'Checkout using Xendit';
-            $modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
-    
-            $mainframe = JFactory::getApplication();
-            $mainframe->redirect($invoice_response['invoice_url'] . '#' . $this->paymentType);
-        } catch (Exception $e) {
-            vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
-            $this->redirectToCart();
-            return;
-        }
+			try {
+				$invoice_response = $xenditInterface->createInvoice($invoice_data, $invoice_header);
+	
+				if (isset($invoice_response['error_code'])) {
+					$xendit_error = $this->getXenditErrorMessage($invoice_response);
+					vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $xendit_error['title'], $xendit_error['message']));
+					$this->redirectToCart();
+					return;
+				}
+		
+				$dbValues['xendit_invoice_id'] = $invoice_response['id'];
+				$dbValues['xendit_invoice_url'] = $invoice_response['invoice_url'];
+				$dbValues['xendit_status'] = $invoice_response['status'];
+				$this->storePSPluginInternalData ($dbValues);
+		
+				$modelOrder = VmModel::getModel ('orders');
+				$order['order_status'] = $this->getNewStatus ($this->_currentMethod);
+				$order['customer_notified'] = 1;
+				$order['comments'] = 'Checkout using Xendit';
+				$modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
+		
+				$mainframe = JFactory::getApplication();
+				$mainframe->redirect($invoice_response['invoice_url'] . '#' . $paymentType);
+			} catch (Exception $e) {
+				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
+				$this->redirectToCart();
+				return;
+			}
+		}
     }
     
     /**
@@ -265,7 +269,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			return FALSE;
 		}
 
-		$currencyCode = shopFunctions::getCurrencyByID($this->currencyId, 'currency_code_3');
+		$currencyCode = shopFunctions::getCurrencyByID($this->_currentMethod->currency_id, 'currency_code_3');
         if ($currencyCode !== 'IDR') {
             $text = vmText::sprintf('VMPAYMENT_XENDIT_UNSUPPORTED_CURRENCY');
             vmError($text, $text);
@@ -678,7 +682,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	 *
 	 */
 	public function plgVmOnSelectCheckPayment(VirtueMartCart $cart, &$msg) {
-
+		
 		return $this->OnSelectCheck($cart);
 	}
 
@@ -692,7 +696,80 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	 */
 	public function plgVmDisplayListFEPayment(VirtueMartCart $cart, $selected = 0, &$htmlIn) {
 
-		return $this->displayListFE($cart, $selected, $htmlIn);
+		$htmla = array();
+		vmLanguage::loadJLang('com_virtuemart');
+		$currency = CurrencyDisplay::getInstance();
+		
+		$this->_currentMethod = $this->getVmPluginMethod($cart->virtuemart_paymentmethod_id);
+
+		$isCCSelected = false;
+		if ($this->_currentMethod->xendit_gateway_payment_type == 'CC') {
+			$isCCSelected = true;
+		}
+
+		foreach ($this->methods as $method) {
+			if ($this->checkConditions($cart, $method, $cart->cartPrices)) {
+				$cartPrices = $cart->cartPrices;
+				$methodSalesPrice = $this->calculateSalesPrice($cart, $method, $cartPrices);
+
+				$logo = $this->displayLogos($method->payment_logos);
+				$payment_cost = '';
+				if ($methodSalesPrice) {
+					$payment_cost = $currency->priceDisplay($methodSalesPrice);
+				}
+				if ($selected == $method->virtuemart_paymentmethod_id) {
+					$checked = 'checked="checked"';
+				} else {
+					$checked = '';
+				}
+
+				$publicKey = '';
+				if ($method->xendit_gateway_payment_type) { // identified as xendit payment
+					$this->_currentMethod = $method;
+					$xenditInterface = $this->_loadXenditInterface();
+					$publicKey = $xenditInterface->getPublicKey();
+
+					// get CC settings
+					$ccSettings = array();
+					if ($method->xendit_gateway_payment_type == 'CC') {
+						try {
+							$ccSettings = $xenditInterface->getCCSettings();
+						} catch (Exception $e) {
+							$ccSettings = array();
+							vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
+						}
+					}
+				}
+				
+				if ($method->xendit_gateway_payment_type == 'CC') {
+					$html = $this->renderByLayout('cc_payment', 
+					array(
+						'plugin' => $method,
+						'checked' => $checked,
+						'payment_logo' => $logo,
+						'payment_cost' => $payment_cost,
+						'public_key' => $publicKey,
+						'cc_selected' => $isCCSelected,
+						'cc_settings' => $ccSettings
+					));
+				}
+				else {
+					$html = $this->renderByLayout('display_payment', 
+					array(
+						'plugin' => $method,
+						'checked' => $checked,
+						'payment_logo' => $logo,
+						'payment_cost' => $payment_cost
+					));
+				}
+				$htmla[] = $html;
+			}
+		}
+		if (!empty($htmla)) {
+			$htmlIn[] = $htmla;
+		}
+
+		return TRUE;
 	}
 
 	/*
@@ -915,5 +992,5 @@ class plgVmpaymentXendit extends vmPSPlugin {
                 'message' => $response['message']
             );
         }
-    }
+	}
 }

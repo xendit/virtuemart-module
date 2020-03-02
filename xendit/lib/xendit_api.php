@@ -11,19 +11,21 @@ class XenditApi {
         $this->tpi_server_domain = 'https://tpi.xendit.co';
 
         $this->environment = $method->shop_mode ? $method->shop_mode : 'test';
+        $this->payment_type = $method->xendit_gateway_payment_type;
 
-        if (($this->environment=='test' && (empty($method->xendit_gateway_public_api_key_test) || empty($method->xendit_gateway_secret_api_key_test)))
+        if ($this->payment_type) { // identified as xendit payment
+            if (($this->environment=='test' && (empty($method->xendit_gateway_public_api_key_test) || empty($method->xendit_gateway_secret_api_key_test)))
             ||
             ($this->environment!='test' && (empty($method->xendit_gateway_public_api_key) || empty($method->xendit_gateway_secret_api_key)))){
-            $text = vmText::sprintf('VMPAYMENT_XENDIT_PARAMETER_REQUIRED');
-            vmError($text, $text);
+                $text = vmText::sprintf('VMPAYMENT_XENDIT_PARAMETER_REQUIRED');
+                vmError($text, $text);
 
-			return FALSE;
+                return FALSE;
+            }
         }
 
         $this->secret_api_key = $this->environment=='test' ? $method->xendit_gateway_secret_api_key_test : $method->xendit_gateway_secret_api_key;
-        $this->public_api_key = $this->environment!='test' ? $method->xendit_gateway_public_api_key_test : $method->xendit_gateway_public_api_key;
-        $this->payment_type = $method->xendit_gateway_payment_type;
+        $this->public_api_key = $this->environment=='test' ? $method->xendit_gateway_public_api_key_test : $method->xendit_gateway_public_api_key;
     }
 
     function getHeader() {
@@ -33,12 +35,14 @@ class XenditApi {
         );
     }
 
+    function getPublicKey() {
+        return $this->public_api_key;
+    }
+
     /*******************************************************************************
         Virtual Accounts
      *******************************************************************************/
     function createInvoice ($body, $header) {
-        $curl = curl_init();
-
         $endpoint = $this->tpi_server_domain.'/payment/xendit/invoice';
         $default_header = $this->getHeader();
         $header = array_merge($header, $default_header);
@@ -58,6 +62,7 @@ class XenditApi {
         return $json_response;
     }
 
+    /* -Unused-
     function getInvoiceSettings() {
         $curl = curl_init();
 
@@ -77,6 +82,24 @@ class XenditApi {
 
         $jsonResponse = json_decode( $response['body'], true );
         return $jsonResponse;
+    }*/
+
+    /*******************************************************************************
+        Credit Card
+     *******************************************************************************/
+
+    /**
+     * Get CC Setting
+     * Note: the return will be array, but if value is boolean (true) json_decode will convert to "1" otherwise if value is boolean (false) json_decode will convert to ""
+     */
+    function getCCSettings() {
+        $endpoint = $this->tpi_server_domain.'/payment/xendit/settings/credit-card';
+        $default_header = $this->getHeader();
+        $body = [];
+
+        $json_response = $this->_sendRequest($endpoint, self::METHOD_GET, $body, $default_header);
+
+        return $json_response;
     }
 
     function getCharge($charge_id='') {
