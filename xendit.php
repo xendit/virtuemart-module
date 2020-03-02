@@ -200,9 +200,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			$should_3ds = vRequest::getString('xendit_should_3ds');
 
 			if (empty($cc_settings["should_authenticate"])) {
-				// vmInfo('Masuk sini niih harusnya');
-				// $this->redirectToCart();
-				// return;
                 return $this->processCCPaymentWithout3DS($dbValues, $order, $card);
             } else {
                 if (!empty($cc_settings["can_use_dynamic_3ds"])) {
@@ -257,6 +254,15 @@ class plgVmpaymentXendit extends vmPSPlugin {
 				$this->redirectToCart();
 				return;
 			}
+		}
+	}
+
+	private function processCCPaymentWith3DSRecommendation($dbValues, $order, $card, $should3DS)
+	{
+		if ($should3DS === true) {
+			return $this->processCCPaymentWith3DS($dbValues, $order, $card);
+		} else {
+			return $this->processCCPaymentWithout3DS($dbValues, $order, $card);
 		}
 	}
 
