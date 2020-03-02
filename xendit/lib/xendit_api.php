@@ -29,9 +29,13 @@ class XenditApi {
     }
 
     function getHeader() {
+        $site_config = JFactory::getConfig();
+        $store_name = $site_config->get('sitename');
+
         return array(
             'content-type: application/json',
-            'x-plugin-name: VIRTUEMART'
+            'x-plugin-name: VIRTUEMART',
+            'x-plugin-store-name: ' . $store_name
         );
     }
 
@@ -46,6 +50,8 @@ class XenditApi {
         $endpoint = $this->tpi_server_domain.'/payment/xendit/invoice';
         $default_header = $this->getHeader();
         $header = array_merge($header, $default_header);
+
+        // return $header;
 
         $json_response = $this->_sendRequest($endpoint, self::METHOD_POST, $body, $header);
 
@@ -88,11 +94,15 @@ class XenditApi {
         Credit Card
      *******************************************************************************/
 
-    function createHosted3DS($body) {
+    function createHosted3DS($body, $header) {
         $endpoint = $this->tpi_server_domain.'/payment/xendit/credit-card/hosted-3ds';
         $default_header = $this->getHeader();
+        $header = array_merge($header, $default_header);
+        $options = array(
+            'should_use_public_key' => true
+        );
 
-        $json_response = $this->_sendRequest($endpoint, self::METHOD_GET, $body, $default_header);
+        $json_response = $this->_sendRequest($endpoint, self::METHOD_POST, $body, $header, $options);
 
         return $json_response;
     }
@@ -112,7 +122,7 @@ class XenditApi {
     }
 
     function getCharge($charge_id='') {
-        $endPoint = $this->tpi_server_domain.'/payment/xendit/credit-card/'.$charge_id;
+        $endPoint = $this->tpi_server_domain.'/payment/xendit/credit-card/charges/'.$charge_id;
         $default_header = $this->getHeader();
         $body = [];
 
@@ -130,14 +140,17 @@ class XenditApi {
 	 * @param string $content
 	 *
 	 */
-	function _sendRequest($endpoint, $method, $body = array(), $header = array()) {
+	function _sendRequest($endpoint, $method, $body = array(), $header = array(), $options = array()) {
         $ch = curl_init();
-    
+        
+        $should_use_public_key = isset($options['should_use_public_key']) ? $options['should_use_public_key'] : false;
+        $api_key = $should_use_public_key ? $this->public_api_key : $this->secret_api_key;
+
         $curl_options = array(
             CURLOPT_URL => $endpoint,
             CURLOPT_HTTPHEADER => $header,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_USERPWD => $this->secret_api_key . ':'
+            CURLOPT_USERPWD => $api_key . ':'
         );
 
         if ($method === self::METHOD_POST) {

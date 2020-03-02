@@ -82,7 +82,8 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			'xendit_status'               => 'varchar(50)',
 			'xendit_invoice_id'           => 'varchar(255)',
 			'xendit_invoice_url'          => 'varchar(255)',
-			'xendit_charge_id'            => 'varchar(255)'
+			'xendit_charge_id'            => 'varchar(255)',
+			// 'xendit_hosted3ds_id'         => 'varchar(255)'
 		);
 		return $SQLfields;
 	}
@@ -165,12 +166,12 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		 * 'value' is unformatted & may contain decimals as a result of currency conversion, tax, etc
 		 * We'll reject if 'value' is not an integer
 		 */
-		$order_amount = $totalInPaymentCurrency['value'];
-		if ((int)$order_amount != $totalInPaymentCurrency['value']) {
-            vmError(vmText::sprintf('VMPAYMENT_XENDIT_INVALID_AMOUNT'));
-			$this->redirectToCart();
-            return;
-		}
+		$order_amount = (int)$totalInPaymentCurrency['value'];
+		// if ((int)$order_amount != $totalInPaymentCurrency['value']) {
+        //     vmError(vmText::sprintf('VMPAYMENT_XENDIT_INVALID_AMOUNT'));
+		// 	$this->redirectToCart();
+        //     return;
+		// }
 
         $dbValues['virtuemart_order_id'] = VirtueMartModelOrders::getOrderIdByOrderNumber($order_number);
 		$dbValues['order_number'] = $order_number;
@@ -183,7 +184,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
         $site_config = JFactory::getConfig();
         $store_name = $site_config->get('sitename');
-		$ext_id_store_name = substr(preg_replace("/[^a-z0-9]/mi", "", $store_name), 0, 20);
 		
 		$paymentType = $this->_currentMethod->xendit_gateway_payment_type;
 
@@ -193,16 +193,19 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			$cc_settings = $xenditInterface->getCCSettings();
 
 			// need to get token and should 3ds from frontend here
-			$token = 'sample_token';
-			$should_3ds = true;
+			$token = vRequest::getString('xendit_token');
+			$should_3ds = vRequest::getString('xendit_should_3ds');
 
 			if (empty($cc_settings["should_authenticate"])) {
-                return $this->processCCPaymentWithout3DS($order, $token);
+                return $this->processCCPaymentWithout3DS($dbValues, $order, $token);
             } else {
                 if (!empty($cc_settings["can_use_dynamic_3ds"])) {
-                    return $this->processCCPaymentWith3DSRecommendation($order, $token, $should_3ds);
+                    return $this->processCCPaymentWith3DSRecommendation($dbValues, $order, $token, $should_3ds);
                 } else {
-                    return $this->processCCPaymentWith3DS($order, $token);
+					// vmInfo('Masuk sini niih harusnya');
+					// $this->redirectToCart();
+					// return;
+                    return $this->processCCPaymentWith3DS($dbValues, $order, $token);
                 }
 			}
 
@@ -210,7 +213,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		}
 		else {
 			$invoice_data = array(
-				'external_id' => "virtuemart-xendit-$ext_id_store_name-$order_number",
+				'external_id' => $this->generateExternalId($order_number),
 				'amount' => (int)$order_amount,
 				'payer_email' => !empty($address->email) ? $address->email : 'virtuemartNoReply@xendit.co',
 				'description' => "Payment for Order #{$order_number} at $store_name",
@@ -221,7 +224,6 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			);
 			$invoice_header = array(
 				'x-plugin-method: ' . $paymentType,
-				'x-plugin-store-name: ' . $store_name
 			);
 
 			try {
@@ -253,7 +255,64 @@ class plgVmpaymentXendit extends vmPSPlugin {
 				return;
 			}
 		}
-    }
+	}
+	
+	private function processCCPaymentWith3DS($dbValues, $order, $token)
+	{
+		$xenditInterface = $this->_loadXenditInterface();
+
+		$hosted3ds_data = array(
+			'token_id' => $token,
+			'external_id' => $this->generateExternalId($dbValues['order_number']),
+			'amount' => $dbValues['payment_order_total'],
+			'platform_callback_url' => self::getNotificationUrl($order),
+			'return_url' => self::getSuccessUrl($order),
+			'failed_return_url' => self::getCancelUrl($order),
+		);
+		$hosted3ds_header = array(
+			'x-api-version: 2020-02-14'
+		);
+
+		try {
+			$hosted3ds = $xenditInterface->createHosted3DS($hosted3ds_data, $hosted3ds_header);
+
+			// vmInfo('apa nii ' . print_r($hosted3ds, true));
+			// $this->redirectToCart();
+			// return;
+
+			if (isset($hosted3ds['error_code'])) {
+				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $hosted3ds['error_code'], $hosted3ds['message']));
+				$this->redirectToCart();
+				return;
+			}
+	
+			// $dbValues['xendit_hosted3ds_id'] = $hosted3ds['id'];
+			$dbValues['xendit_status'] = $hosted3ds['status'];
+			$this->storePSPluginInternalData ($dbValues);
+			
+			$modelOrder = VmModel::getModel ('orders');
+			$order['order_status'] = $this->getNewStatus ($this->_currentMethod);
+			$order['customer_notified'] = 1;
+			$order['comments'] = 'Checkout using Xendit';
+			$modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
+	
+			$mainframe = JFactory::getApplication();
+			$mainframe->redirect($hosted3ds['redirect']['url']);
+		} catch (Exception $e) {
+			vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
+			$this->redirectToCart();
+			return;
+		}
+	}
+
+	private function generateExternalId($order_number)
+	{
+        $site_config = JFactory::getConfig();
+        $store_name = $site_config->get('sitename');
+		$ext_id_store_name = substr(preg_replace("/[^a-z0-9]/mi", "", $store_name), 0, 20);
+
+		return "virtuemart-xendit-$ext_id_store_name-$order_number";
+	}
     
     /**
      * Redirect to cart in case of error
