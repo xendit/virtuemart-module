@@ -37,8 +37,8 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 			   pattern="\d*" maxlength="7" placeholder="MM/YY">
 	</div>
 	<div style="float:left;">
-		<label for="xendit_gateway_card_code">Card code <span class="required">*</span></label><br>
-		<input type="text" name="xendit_gateway_card_code" id="xendit_gateway_card_code" class="xenditcc cc-code" 
+		<label for="xendit_gateway_card_code">Security code <span class="required">*</span></label><br>
+		<input type="password" name="xendit_gateway_card_code" id="xendit_gateway_card_code" class="xenditcc cc-code" 
 			   pattern="\d*" maxlength="4" placeholder="CVC">
 	</div>
 
