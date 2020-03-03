@@ -56,7 +56,7 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 <script>
 	var useClick = false;
 	
-	function xenditTokenisasi() {
+	function xenditClickCC() {
 		useClick = true;
 	}
 		
@@ -80,7 +80,7 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 		// Card validation on submit
 		var flag = false;
 		
-		$('#checkoutFormSubmit').attr('onclick','xenditTokenisasi()');
+		$('#checkoutFormSubmit').attr('onclick','xenditClickCC()');
 		
 		$('#checkoutForm').submit(function(event) {
 			if(useClick){
