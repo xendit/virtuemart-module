@@ -30,7 +30,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		$this->setConfigParameterable ($this->_configTableFieldName, $varsToPush);
 
 		// Xendit custom parameters
-        $this->defaultMinimumAmount = 5000;
+        $this->defaultMinimumAmount = 10000;
 		$this->defaultMaximumAmount = 1000000000;
 		$this->defaultCCMaximumAmount = 200000000;
 	}
