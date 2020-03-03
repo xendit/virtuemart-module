@@ -30,7 +30,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		$this->setConfigParameterable ($this->_configTableFieldName, $varsToPush);
 
 		// Xendit custom parameters
-        $this->defaultMinimumAmount = 5000;
+        $this->defaultMinimumAmount = 10000;
 		$this->defaultMaximumAmount = 1000000000;
 		$this->defaultCCMaximumAmount = 200000000;
 	}
@@ -212,6 +212,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			return;
 		}
 		else {
+			$additional_data = $this->generateCustomerAndItemsObject($order);
 			$invoice_data = array(
 				'external_id' => $this->generateExternalId($order_number),
 				'amount' => (int)$order_amount,
@@ -220,7 +221,9 @@ class plgVmpaymentXendit extends vmPSPlugin {
 				'client_type' => 'INTEGRATION',
 				'success_redirect_url' => self::getSuccessUrl($order),
 				'failure_redirect_url' => self::getCancelUrl($order),
-				'platform_callback_url' => self::getNotificationUrl($order)
+				'platform_callback_url' => self::getNotificationUrl($order),
+				'items' => $additional_data['items'],
+				'customer' => $additional_data['customer']
 			);
 			$invoice_header = array(
 				'x-plugin-method: ' . $paymentType,
@@ -295,13 +298,20 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	private function processCCPaymentWithout3DS($dbValues, $order, $card)
 	{
 		$xenditInterface = $this->_loadXenditInterface();
+		$additional_data = $this->generateCustomerAndItemsObject($order);
 
 		$charge_data = array(
 			'token_id' => $card['token'],
 			'external_id' => $this->generateExternalId($dbValues['order_number']),
 			'amount' => $dbValues['payment_order_total'],
-			'card_cvn' => $card['cvn']
+			'card_cvn' => $card['cvn'],
+			'items' => $additional_data['items'],
+			'customer' => $additional_data['customer']
 		);
+
+		if (isset($card['authentication_id'])) {
+			$charge_data['authentication_id'] = $card['authentication_id'];
+		}
 
 		try {
 			$charge = $xenditInterface->createCharge($charge_data);
@@ -367,6 +377,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	private function processCCPaymentWith3DS($dbValues, $order, $card)
 	{
 		$xenditInterface = $this->_loadXenditInterface();
+		$additional_data = $this->generateCustomerAndItemsObject($order);
 
 		$hosted3ds_data = array(
 			'token_id' => $card['token'],
@@ -375,6 +386,8 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			'platform_callback_url' => self::getNotificationUrl($order),
 			'return_url' => self::getSuccessUrl($order),
 			'failed_return_url' => self::getCancelUrl($order),
+			'items' => $additional_data['items'],
+			'customer' => $additional_data['customer']
 		);
 		$hosted3ds_header = array(
 			'x-api-version: 2020-02-14'
@@ -387,6 +400,11 @@ class plgVmpaymentXendit extends vmPSPlugin {
 				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $hosted3ds['error_code'], $hosted3ds['message']));
 				$this->redirectToCart();
 				return;
+			}
+
+			if ($hosted3ds['status'] !== 'IN_REVIEW') {
+				$card['authentication_id'] = $hosted3ds['authentication_id'];
+				return $this->processCCPaymentWithout3DS($dbValues, $order, $card);
 			}
 	
 			// $dbValues['xendit_hosted3ds_id'] = $hosted3ds['id'];
@@ -1085,6 +1103,46 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		$xenditInterface = new XenditApi($this->_currentMethod);
 
 		return $xenditInterface;
+	}
+
+	private function generateCustomerAndItemsObject($order)
+	{
+		$item_details = array();
+
+		$conversion_rate = floatval($this->_currentMethod->conversion_rate);
+		if(!isset($conversion_rate) OR $conversion_rate='' OR $conversion_rate='1'){
+			$conversion_rate = 1;
+		}
+
+		foreach ($order['items'] as $individual_item) {
+			$item = array();
+			$line_item_price = $individual_item->product_final_price;
+			$item['quantity'] = $individual_item->product_quantity;
+			$item['price'] = ceil($line_item_price * $conversion_rate);
+			$item['name'] = $individual_item->order_item_name;
+			$item['category'] = $individual_item->category_name;
+			$item['url'] = $individual_item->product_url;
+			$items_details[] = $item;
+		}
+
+		$fname = $order['details']['BT']->first_name;
+		if (isset($order['details']['BT']->middle_name) and $order['details']['BT']->middle_name) {
+			$fname .= ' ' . $order['details']['BT']->middle_name;
+		}
+		$lname = $order['details']['BT']->last_name;
+
+		$customer = array(
+			'full_name' => $fname . ' ' . $lname,
+			'email' => $order['details']['BT']->email,
+			'phone_number' => $order['details']['BT']->phone_1,
+			'address_city' => $order['details']['BT']->city,
+			'address_postal_code' => $order['details']['BT']->zip,
+		);
+
+		return array(
+			'items' => '[' . implode(",", $item_details) . ']',
+            'customer' => json_encode($customer)
+		);
 	}
 
 	/**
