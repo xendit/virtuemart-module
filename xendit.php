@@ -309,6 +309,10 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			'customer' => $additional_data['customer']
 		);
 
+		if (isset($card['authentication_id'])) {
+			$charge_data['authentication_id'] = $card['authentication_id'];
+		}
+
 		try {
 			$charge = $xenditInterface->createCharge($charge_data);
 
@@ -396,6 +400,11 @@ class plgVmpaymentXendit extends vmPSPlugin {
 				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $hosted3ds['error_code'], $hosted3ds['message']));
 				$this->redirectToCart();
 				return;
+			}
+
+			if ($hosted3ds['status'] !== 'IN_REVIEW') {
+				$card['authentication_id'] = $hosted3ds['authentication_id'];
+				return $this->processCCPaymentWithout3DS($dbValues, $order, $card);
 			}
 	
 			// $dbValues['xendit_hosted3ds_id'] = $hosted3ds['id'];
