@@ -30,7 +30,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		$this->setConfigParameterable ($this->_configTableFieldName, $varsToPush);
 
 		// Xendit custom parameters
-        $this->defaultMinimumAmount = 5000;
+        $this->defaultMinimumAmount = 10000;
 		$this->defaultMaximumAmount = 1000000000;
 		$this->defaultCCMaximumAmount = 200000000;
 	}
@@ -309,6 +309,10 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			'customer' => $additional_data['customer']
 		);
 
+		if (isset($card['authentication_id'])) {
+			$charge_data['authentication_id'] = $card['authentication_id'];
+		}
+
 		try {
 			$charge = $xenditInterface->createCharge($charge_data);
 
@@ -396,6 +400,11 @@ class plgVmpaymentXendit extends vmPSPlugin {
 				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $hosted3ds['error_code'], $hosted3ds['message']));
 				$this->redirectToCart();
 				return;
+			}
+
+			if ($hosted3ds['status'] !== 'IN_REVIEW') {
+				$card['authentication_id'] = $hosted3ds['authentication_id'];
+				return $this->processCCPaymentWithout3DS($dbValues, $order, $card);
 			}
 	
 			// $dbValues['xendit_hosted3ds_id'] = $hosted3ds['id'];
@@ -1118,13 +1127,9 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
 		$fname = $order['details']['BT']->first_name;
 		if (isset($order['details']['BT']->middle_name) and $order['details']['BT']->middle_name) {
-			$fname .= $order['details']['BT']->middle_name;
+			$fname .= ' ' . $order['details']['BT']->middle_name;
 		}
 		$lname = $order['details']['BT']->last_name;
-		$address = $order['details']['BT']->address_1;
-		if (isset($order['details']['BT']->address_2) and $order['details']['BT']->address_2) {
-			$address .= $order['details']['BT']->address_2;
-		}
 
 		$customer = array(
 			'full_name' => $fname . ' ' . $lname,
