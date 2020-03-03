@@ -83,7 +83,8 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 		$('#checkoutFormSubmit').attr('onclick','xenditClickCC()');
 		
 		$('#checkoutForm').submit(function(event) {
-			if(useClick){
+			if (useClick){
+				useClick = false;
 				if (!flag) {
 					event.preventDefault();
 					
@@ -138,7 +139,7 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 
 									$('#xendit_should_3ds').val(threeDSResponse.should_3ds);
 									xendit_form.submit();
-									
+
 									return;
 								});
 							} else {
