@@ -1118,13 +1118,9 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
 		$fname = $order['details']['BT']->first_name;
 		if (isset($order['details']['BT']->middle_name) and $order['details']['BT']->middle_name) {
-			$fname .= $order['details']['BT']->middle_name;
+			$fname .= ' ' . $order['details']['BT']->middle_name;
 		}
 		$lname = $order['details']['BT']->last_name;
-		$address = $order['details']['BT']->address_1;
-		if (isset($order['details']['BT']->address_2) and $order['details']['BT']->address_2) {
-			$address .= $order['details']['BT']->address_2;
-		}
 
 		$customer = array(
 			'full_name' => $fname . ' ' . $lname,
