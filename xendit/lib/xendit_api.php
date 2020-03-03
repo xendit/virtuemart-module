@@ -2,6 +2,24 @@
 
 defined('_JEXEC') or die('Restricted access');
 
+/**
+ * @mainpage
+ * Base class for Xendit REST API
+ * This class implements basic http authentication and JSON parse to PHP array
+ * for the response
+ *
+ * Requires libcurl and openssl
+ *
+ * Copyright (c) 2020 Xendit
+ *
+ * Released under the GNU General Public License (Version 3)
+ * [https://www.gnu.org/licenses/gpl-3.0.html]
+ *
+ * $Date: 2020-03-03 14:08:47 +0700 (Tue, 3 Mar 2020) $
+ * @author Xendit https://xendit.co (thirdpartyintegrations@xendit.co)
+ *
+ */
+
 class XenditApi {
     const METHOD_POST = 'POST';
     const METHOD_GET = 'GET';
