@@ -200,13 +200,13 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			$should_3ds = vRequest::getString('xendit_should_3ds');
 
 			if (empty($cc_settings["should_authenticate"])) {
-                return $this->processCCPaymentWithout3DS($dbValues, $order, $card);
+				if (!empty($cc_settings["can_use_dynamic_3ds"])) {
+					return $this->processCCPaymentWith3DSRecommendation($dbValues, $order, $card, $should_3ds);
+				} else {
+					return $this->processCCPaymentWithout3DS($dbValues, $order, $card);
+				}
             } else {
-                if (!empty($cc_settings["can_use_dynamic_3ds"])) {
-                    return $this->processCCPaymentWith3DSRecommendation($dbValues, $order, $card, $should_3ds);
-                } else {
-                    return $this->processCCPaymentWith3DS($dbValues, $order, $card);
-                }
+                return $this->processCCPaymentWith3DS($dbValues, $order, $card);
 			}
 
 			return;
