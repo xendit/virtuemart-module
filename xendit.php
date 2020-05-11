@@ -1133,6 +1133,8 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
 		$customer = array(
 			'full_name' => $fname . ' ' . $lname,
+			'first_name' => $fname,
+			'last_name' => $lname,
 			'email' => $order['details']['BT']->email,
 			'phone_number' => $order['details']['BT']->phone_1,
 			'address_city' => $order['details']['BT']->city,
