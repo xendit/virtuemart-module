@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.0.1 (2020-05-08)
+- Reconfigure Dynamic 3DS
+
 ## 1.0.0 (2020-03-03)
 - Add support to choose different payment method
 - Support these payment methods:

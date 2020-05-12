@@ -133,6 +133,7 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 									flag = true;
 									
 									if (threeDSErr) {
+										$('#xendit_should_3ds').val(true);
 										xendit_form.submit();
 										return;
 									}
