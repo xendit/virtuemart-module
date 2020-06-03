@@ -46,8 +46,6 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 	<br clear="all" />
 
 	<!-- Hidden inputs -->
-	<input type='hidden' id='year' name='year' value=''>
-	<input type='hidden' id='month' name='month' value=''>
 	<input type='hidden' id='card_cvn' name='card_cvn' value=''>
 	<input type='hidden' id='xendit_token' name='xendit_token' value=''>
 	<input type='hidden' id='masked_card_number' name='masked_card_number' value=''>
@@ -106,8 +104,6 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 
 						Xendit.setPublishableKey('<?php echo $viewData['public_key']; ?>');
 
-						$('#year').val(data.card_exp_year);
-						$('#month').val(data.card_exp_month);
 						$('#card_cvn').val(data.card_cvn);
 						
 						Xendit.card.createToken(data, function(tokenErr, tokenResponse) { // on tokenization response

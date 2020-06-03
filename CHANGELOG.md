@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.0.2 (2020-06-03)
+- Remove unused month and year
+
 ## 1.0.1 (2020-05-08)
 - Reconfigure Dynamic 3DS
 
