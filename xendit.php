@@ -328,7 +328,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
 			if ($charge['status'] !== 'CAPTURED') {
 				$failure_reason = self::getXenditFailureMessage($charge['failure_reason']);
-				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $failure_reason['message']));
+				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $failure_reason));
 				$this->redirectToCart();
 				return;
 			}
@@ -904,7 +904,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
 		if (strlen($chargeError) > 1) {
 			$failureReason = self::getXenditFailureMessage($chargeError);
-			vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $failureReason['message']));
+			vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $failureReason));
 		}
 
 		foreach ($this->methods as $method) {
@@ -1234,53 +1234,26 @@ class plgVmpaymentXendit extends vmPSPlugin {
      * @param string $failure_reason
      * @return array
      */
-	static function getXenditFailureMessage ($failure_reason) {
+	static function getXenditFailureMessage ($failure_reason = '') {
         switch ($failure_reason) {
 			case 'CARD_DECLINED':
-				return array(
-					'title' => $failure_reason,
-					'message' => 'Card declined by the issuer bank. Please try with another card or contact the bank directly. code: 200011'
-				);
+				return 'Card declined by the issuer bank. Please try with another card or contact the bank directly. Code: 200011';
 			case 'STOLEN_CARD':
-				return array(
-					'title' => $failure_reason,
-					'message' => 'Card declined by the issuer bank. Please try with another card or contact the bank directly. code: 200013'
-				);
+				return 'Card declined by the issuer bank. Please try with another card or contact the bank directly. Code: 200013';
 			case 'INSUFFICIENT_BALANCE':
-				return array(
-					'title' => $failure_reason,
-					'message' => 'Card declined by the issuer bank. Please try with another card or contact the bank directly. Code: 200012'
-				);
+				return 'Card declined due to insufficient balance. Ensure sufficient balance is available, or try another card. Code: 200012';
 			case 'INVALID_CVN':
-				return array(
-					'title' => $failure_reason,
-					'message' => 'Card declined due to incorrect card details. Please try again. Code: 200015'
-				);
+				return 'Card declined due to incorrect card details. Please try again. Code: 200015';
 			case 'INACTIVE_CARD':
-				return array(
-					'title' => $failure_reason,
-					'message' => 'Card declined by the issuer bank. Please try with another card or contact the bank directly. Code: 200014'
-				);
+				return 'Card declined by the issuer bank. Please try with another card or contact the bank directly. Code: 200014';
 			case 'EXPIRED_CARD':
-				return array(
-					'title' => $failure_reason,
-					'message' => 'Card declined due to expiration. Please try again with another card. Code: 200010'
-				);
+				return 'Card declined due to expiration. Please try again with another card. Code: 200010';
 			case 'PROCESSOR_ERROR':
-				return array(
-					'title' => $failure_reason,
-					'message' => 'We encountered an issue while processing the checkout. Please try again. Code: 200009'
-				);
+				return 'We encountered an issue while processing the checkout. Please try again. Code: 200009';
 			case 'AUTHENTICATION_FAILED':
-				return array(
-					'title' => $failure_reason,
-					'message' => 'The authentication process failed. Please try again. Code: 200001'
-				);
+				return 'The authentication process failed. Please try again. Code: 200001';
             default:
-				return array(
-					'title' => $failure_reason,
-					'message' => 'Failed to process transaction.'
-				);
+				return 'Failed to process transaction.';
         }
 	}
 }
