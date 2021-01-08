@@ -234,7 +234,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	
 				if (isset($invoice_response['error_code'])) {
 					$xendit_error = $this->getXenditErrorMessage($invoice_response);
-					vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $xendit_error['title'], $xendit_error['message']));
+					vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $xendit_error['message']));
 					$this->redirectToCart();
 					return;
 				}
@@ -253,7 +253,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 				$mainframe = JFactory::getApplication();
 				$mainframe->redirect($invoice_response['invoice_url'] . '#' . $paymentType);
 			} catch (Exception $e) {
-				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
+				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage()));
 				$this->redirectToCart();
 				return;
 			}
@@ -317,7 +317,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			$charge = $xenditInterface->createCharge($charge_data);
 
 			if (isset($charge['error_code'])) {
-				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $charge['error_code'], $charge['message']));
+				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $charge['message'] . ' Code: ' . $charge['code']));
 				$this->redirectToCart();
 				return;
 			}
@@ -328,7 +328,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
 			if ($charge['status'] !== 'CAPTURED') {
 				$failure_reason = self::getXenditFailureMessage($charge['failure_reason']);
-				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $failure_reason['title'], $failure_reason['message']));
+				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $failure_reason['message']));
 				$this->redirectToCart();
 				return;
 			}
@@ -358,7 +358,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
 			return TRUE;
 		} catch (Exception $e) {
-			vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
+			vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage()));
 			$this->redirectToCart();
 			return;
 		}
@@ -397,7 +397,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			$hosted3ds = $xenditInterface->createHosted3DS($hosted3ds_data, $hosted3ds_header);
 
 			if (isset($hosted3ds['error_code'])) {
-				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $hosted3ds['error_code'], $hosted3ds['message']));
+				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $hosted3ds['message'] . ' Code: ' . $hosted3ds['code']));
 				$this->redirectToCart();
 				return;
 			}
@@ -420,7 +420,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			$mainframe = JFactory::getApplication();
 			$mainframe->redirect($hosted3ds['redirect']['url']);
 		} catch (Exception $e) {
-			vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
+			vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage()));
 			$this->redirectToCart();
 			return;
 		}
@@ -464,8 +464,8 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
 		$currencyCode = shopFunctions::getCurrencyByID($this->_currentMethod->currency_id, 'currency_code_3');
         if ($currencyCode !== 'IDR') {
-            $text = vmText::sprintf('VMPAYMENT_XENDIT_UNSUPPORTED_CURRENCY');
-            vmError($text, $text);
+            $text = vmText::sprintf('VMPAYMENT_XENDIT_UNSUPPORTED_CURRENCY', $currencyCode);
+            vmError('UNSUPPORTED_CURRENCY_ERROR', $text);
             
 			return FALSE;
         }
@@ -904,7 +904,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
 		if (strlen($chargeError) > 1) {
 			$failureReason = self::getXenditFailureMessage($chargeError);
-			vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $failureReason['title'], $failureReason['message']));
+			vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $failureReason['message']));
 		}
 
 		foreach ($this->methods as $method) {
@@ -940,7 +940,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 							$ccSettings = $xenditInterface->getCCSettings();
 						} catch (Exception $e) {
 							$ccSettings = array();
-							vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage(), $e->getMessage()));
+							vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage()));
 						}
 					}
 
@@ -1223,19 +1223,10 @@ class plgVmpaymentXendit extends vmPSPlugin {
      * @return array
      */
 	static function getXenditErrorMessage ($response) {
-        switch ($response['error_code']) {
-            case 'INVALID_API_KEY':
-            case 'REQUEST_FORBIDDEN_ERROR':
-                return array(
-                    'title' => 'Invalid API Key',
-                    'message' => 'Your merchant using wrong Xendit credential, please inform your merchant so your merchant can change it to the correct one'
-				);
-            default:
-            return array(
-                'title' => $response['error_code'],
-                'message' => $response['message']
-            );
-        }
+        return array(
+			'title' => $response['error_code'],
+			'message' => $response['message']. ' Code: '. $response['code']
+		);
 	}
 
 	/**
@@ -1246,40 +1237,44 @@ class plgVmpaymentXendit extends vmPSPlugin {
 	static function getXenditFailureMessage ($failure_reason) {
         switch ($failure_reason) {
 			case 'CARD_DECLINED':
+				return array(
+					'title' => $failure_reason,
+					'message' => 'Card declined by the issuer bank. Please try with another card or contact the bank directly. code: 200011'
+				);
 			case 'STOLEN_CARD':
 				return array(
-					'title' => 'CARD_DECLINED',
-					'message' => 'The bank that issued this card declined the payment but didn\'t tell us why. Try another card, or try calling your bank to ask why the card was declined.'
+					'title' => $failure_reason,
+					'message' => 'Card declined by the issuer bank. Please try with another card or contact the bank directly. code: 200013'
 				);
 			case 'INSUFFICIENT_BALANCE':
 				return array(
 					'title' => $failure_reason,
-					'message' => 'Your bank declined this payment due to insufficient balance. Ensure that sufficient balance is available, or try another card'
+					'message' => 'Card declined by the issuer bank. Please try with another card or contact the bank directly. Code: 200012'
 				);
 			case 'INVALID_CVN':
 				return array(
 					'title' => $failure_reason,
-					'message' => 'Your bank declined the payment due to incorrect card details entered. Try to enter your card details again, including expiration date and CVV'
+					'message' => 'Card declined due to incorrect card details. Please try again. Code: 200015'
 				);
 			case 'INACTIVE_CARD':
 				return array(
 					'title' => $failure_reason,
-					'message' => 'This card number does not seem to be enabled for eCommerce payments. Try another card that is enabled for eCommerce, or ask your bank to enable eCommerce payments for your card.'
+					'message' => 'Card declined by the issuer bank. Please try with another card or contact the bank directly. Code: 200014'
 				);
 			case 'EXPIRED_CARD':
 				return array(
 					'title' => $failure_reason,
-					'message' => 'Your bank declined the payment due to the card being expired. Please try another card that has not expired.'
+					'message' => 'Card declined due to expiration. Please try again with another card. Code: 200010'
 				);
 			case 'PROCESSOR_ERROR':
 				return array(
 					'title' => $failure_reason,
-					'message' => 'We encountered issue in processing your card. Please try again with another card.'
+					'message' => 'We encountered an issue while processing the checkout. Please try again. Code: 200009'
 				);
 			case 'AUTHENTICATION_FAILED':
 				return array(
 					'title' => $failure_reason,
-					'message' => 'Authentication process failed. Please try again'
+					'message' => 'The authentication process failed. Please try again. Code: 200001'
 				);
             default:
 				return array(
