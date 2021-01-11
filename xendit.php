@@ -1253,7 +1253,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			case 'AUTHENTICATION_FAILED':
 				return 'The authentication process failed. Please try again. Code: 200001';
             default:
-				return 'Failed to process transaction.';
+				return 'We encountered an issue while processing the checkout. Please try again. Code: 100007';
         }
 	}
 }
