@@ -109,7 +109,7 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 						Xendit.card.createToken(data, function(tokenErr, tokenResponse) { // on tokenization response
 							if (tokenErr) { // how to display VM error style in here?
 								if(tokenErr.error_code === 'VALIDATION_ERROR') {
-									alert('Inputted credit card data (can be CC number, expiry date, CVN) is invalid. Code: 200003');
+									alert('Please verify that the credit card information is correct. Code: 200003');
 								} else {
 									alert(tokenErr.error_code + ": " + tokenErr.message);
 								}
