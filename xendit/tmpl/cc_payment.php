@@ -108,7 +108,11 @@ vmJsApi::addJScript('https://js.xendit.co/v1/xendit.min.js');
 						
 						Xendit.card.createToken(data, function(tokenErr, tokenResponse) { // on tokenization response
 							if (tokenErr) { // how to display VM error style in here?
-								alert(tokenErr.error_code + ": " + tokenErr.message);
+								if(tokenErr.error_code === 'VALIDATION_ERROR') {
+									alert('Please verify that the credit card information is correct. Code: 200003');
+								} else {
+									alert(tokenErr.error_code + ": " + tokenErr.message);
+								}
 
 								Virtuemart.stopVmLoading();
 								jQuery("#checkoutFormSubmit").attr("disabled", false);
