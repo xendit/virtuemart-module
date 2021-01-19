@@ -6,7 +6,7 @@
     <authorUrl>https://xendit.co</authorUrl>
     <copyright>Copyright (C) 2020 Xendit. All rights reserved.</copyright>
     <license>http://www.gnu.org/licenses/gpl-2.0.html GNU/GPL</license>
-    <version>1.0.2</version>
+    <version>1.1.0</version>
     <description><![CDATA[<a href="http://xendit.co" target="_blank">Xendit</a> ]]>
     </description>
     <languages folder="language">

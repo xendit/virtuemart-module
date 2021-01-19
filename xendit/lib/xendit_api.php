@@ -52,6 +52,7 @@ class XenditApi {
         return array(
             'content-type: application/json',
             'x-plugin-name: VIRTUEMART',
+            'x-plugin-version: 1.1.0',
             'x-plugin-store-name: ' . $store_name
         );
     }

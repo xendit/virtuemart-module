@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.1.0 (2021-01-19)
+- Error message standardization
+
 ## 1.0.2 (2020-06-03)
 - Remove unused month and year
 
