@@ -32,6 +32,7 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		// Xendit custom parameters
         $this->defaultMinimumAmount = 10000;
 		$this->defaultMaximumAmount = 1000000000;
+		$this->defaultCCMinimumAmount = 5000;
 		$this->defaultCCMaximumAmount = 200000000;
 	}
 
@@ -121,7 +122,10 @@ class plgVmpaymentXendit extends vmPSPlugin {
 
         $total_price = $cart_prices['salesPrice'] + $cart_prices['salesPriceShipment'];
 
-        if ($total_price < $this->defaultMinimumAmount) {
+        if ($method->xendit_gateway_payment_type != 'CC' && $total_price < $this->defaultMinimumAmount) {
+            return FALSE;
+		}
+        if ($method->xendit_gateway_payment_type == 'CC' && $total_price < $this->defaultCCMinimumAmount) {
             return FALSE;
 		}
 		if ($method->xendit_gateway_payment_type == 'CC' && $total_price > $this->defaultCCMaximumAmount) {
@@ -187,76 +191,50 @@ class plgVmpaymentXendit extends vmPSPlugin {
 		
 		$paymentType = $this->_currentMethod->xendit_gateway_payment_type;
 
-		// Differentiate between VA & CC payment methods
-		if ($paymentType == 'CC') {
-			// TODO: handle CC payment
-			$cc_settings = $xenditInterface->getCCSettings();
+		$additional_data = $this->generateCustomerAndItemsObject($order);
+		$invoice_data = array(
+			'external_id' => $this->generateExternalId($order_number),
+			'amount' => (int)$order_amount,
+			'payer_email' => !empty($address->email) ? $address->email : 'virtuemartNoReply@xendit.co',
+			'description' => "Payment for Order #{$order_number} at $store_name",
+			'client_type' => 'INTEGRATION',
+			'success_redirect_url' => self::getSuccessUrl($order),
+			'failure_redirect_url' => self::getCancelUrl($order),
+			'platform_callback_url' => self::getNotificationUrl($order),
+			'items' => $additional_data['items'],
+			'customer' => $additional_data['customer']
+		);
+		$invoice_header = array(
+			'x-plugin-method: ' . $paymentType,
+		);
 
-			// need to get token and should 3ds from frontend here
-			$card = array(
-				'token' => vRequest::getString('xendit_token'),
-				'cvn' => vRequest::getString('card_cvn')
-			);
-			$should_3ds = vRequest::getString('xendit_should_3ds');
+		try {
+			$invoice_response = $xenditInterface->createInvoice($invoice_data, $invoice_header);
 
-			if (empty($cc_settings["should_authenticate"])) {
-				if (!empty($cc_settings["can_use_dynamic_3ds"])) {
-					return $this->processCCPaymentWith3DSRecommendation($dbValues, $order, $card, $should_3ds);
-				} else {
-					return $this->processCCPaymentWithout3DS($dbValues, $order, $card);
-				}
-            } else {
-                return $this->processCCPaymentWith3DS($dbValues, $order, $card);
-			}
-
-			return;
-		}
-		else {
-			$additional_data = $this->generateCustomerAndItemsObject($order);
-			$invoice_data = array(
-				'external_id' => $this->generateExternalId($order_number),
-				'amount' => (int)$order_amount,
-				'payer_email' => !empty($address->email) ? $address->email : 'virtuemartNoReply@xendit.co',
-				'description' => "Payment for Order #{$order_number} at $store_name",
-				'client_type' => 'INTEGRATION',
-				'success_redirect_url' => self::getSuccessUrl($order),
-				'failure_redirect_url' => self::getCancelUrl($order),
-				'platform_callback_url' => self::getNotificationUrl($order),
-				'items' => $additional_data['items'],
-				'customer' => $additional_data['customer']
-			);
-			$invoice_header = array(
-				'x-plugin-method: ' . $paymentType,
-			);
-
-			try {
-				$invoice_response = $xenditInterface->createInvoice($invoice_data, $invoice_header);
-	
-				if (isset($invoice_response['error_code'])) {
-					$xendit_error = $this->getXenditErrorMessage($invoice_response);
-					vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $xendit_error['message']));
-					$this->redirectToCart();
-					return;
-				}
-		
-				$dbValues['xendit_invoice_id'] = $invoice_response['id'];
-				$dbValues['xendit_invoice_url'] = $invoice_response['invoice_url'];
-				$dbValues['xendit_status'] = $invoice_response['status'];
-				$this->storePSPluginInternalData ($dbValues);
-		
-				$modelOrder = VmModel::getModel ('orders');
-				$order['order_status'] = 'U';
-				$order['customer_notified'] = 1;
-				$order['comments'] = 'Checkout using Xendit. Selected method: ' . $paymentType;
-				$modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
-		
-				$mainframe = JFactory::getApplication();
-				$mainframe->redirect($invoice_response['invoice_url'] . '#' . $paymentType);
-			} catch (Exception $e) {
-				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage()));
+			if (isset($invoice_response['error_code'])) {
+				$xendit_error = $this->getXenditErrorMessage($invoice_response);
+				vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $xendit_error['message']));
 				$this->redirectToCart();
 				return;
 			}
+	
+			$dbValues['xendit_invoice_id'] = $invoice_response['id'];
+			$dbValues['xendit_invoice_url'] = $invoice_response['invoice_url'];
+			$dbValues['xendit_status'] = $invoice_response['status'];
+			$this->storePSPluginInternalData ($dbValues);
+	
+			$modelOrder = VmModel::getModel ('orders');
+			$order['order_status'] = 'U';
+			$order['customer_notified'] = 1;
+			$order['comments'] = 'Checkout using Xendit. Selected method: ' . $paymentType;
+			$modelOrder->updateStatusForOneOrder ($order['details']['BT']->virtuemart_order_id, $order, TRUE);
+	
+			$mainframe = JFactory::getApplication();
+			$mainframe->redirect($invoice_response['invoice_url'] . '#' . ($paymentType == 'CC' ? 'credit_card' : $paymentType));
+		} catch (Exception $e) {
+			vmError(vmText::sprintf('VMPAYMENT_XENDIT_ERROR_FROM', $e->getMessage()));
+			$this->redirectToCart();
+			return;
 		}
 	}
 
