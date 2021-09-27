@@ -3,9 +3,12 @@
 ## How to Install
 
 ## Prerequisite
-- VirtueMart
+- Install [Joomla](https://devilbox.readthedocs.io/en/latest/examples/setup-joomla.html) via Devilbox
+- Install [VirtueMart](https://virtuemart.net/downloads) extension or download from Joomla marketplace
+
 ### Manually
 To install this plugin manually, there are two main steps that you need to do:
+
 #### Download and upload
 1. Download [the latest release](https://github.com/xendit/virtuemart-module/releases/latest/download/virtuemart-module.zip).
 2. On your store's administrator page, go to `Extensions -> Install` page

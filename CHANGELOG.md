@@ -1,7 +1,6 @@
 # CHANGELOG
-## 1.1.1 (2021-09-24)
-- Remove current cc implementation
-- Add cc flow into invoice
+## 1.2.0 (2021-09-24)
+- Change cc implementation using Invoice flow
 
 ## 1.1.0 (2021-01-19)
 - Error message standardization
