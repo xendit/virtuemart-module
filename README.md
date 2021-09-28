@@ -10,7 +10,7 @@
 To install this plugin manually, there are two main steps that you need to do:
 
 #### Download and upload
-1. Download [the latest release](https://github.com/xendit/virtuemart-module/releases).
+1. Download [the latest release](https://github.com/xendit/virtuemart-module/releases/tag/1.2.0).
 2. On your store's administrator page, go to `Extensions -> Install` page
 3. Select `Upload Package File`
 4. Upload the downloaded file from step 1
