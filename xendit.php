@@ -1120,8 +1120,8 @@ class plgVmpaymentXendit extends vmPSPlugin {
 			$item['quantity'] = $individual_item->product_quantity;
 			$item['price'] = ceil($line_item_price * $conversion_rate);
 			$item['name'] = $individual_item->order_item_name;
-			$item['category'] = $individual_item->category_name;
-			$item['url'] = $individual_item->product_url;
+			$item['category'] = !empty($individual_item->category_name) ? $individual_item->category_name : 'n/a';
+			$item['url'] = !empty($individual_item->product_url) ? $individual_item->product_url : 'https://xendit.co/';
 			$items_details[] = $item;
 		}
 
