@@ -1,4 +1,6 @@
 # CHANGELOG
+## 1.2.0 (2021-09-24)
+- Change cc implementation using Invoice flow
 
 ## 1.2.1 (2022-02-16)
 - Improve item
