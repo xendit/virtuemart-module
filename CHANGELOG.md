@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.2.1 (2022-02-16)
+- Improve item
+
 ## 1.1.0 (2021-01-19)
 - Error message standardization
 
